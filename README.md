@@ -18,7 +18,9 @@ Free, open-source, local-first desktop tracker for **Path of Exile 2**.
 | Client.txt watcher + run tracker | ✅ working, tested (patterns to re-check on 1.0 logs) |
 | Headless Path of Building bridge | ✅ build import/export, item comparison, node comparison |
 | poe.ninja pricing (1 h cache) | ✅ |
-| Build versions, investment declaration, profit/hour | 🚧 next |
+| Build versions (every run linked to the active version) | ✅ |
+| Ctrl+C item comparison (automatic) + "I equipped it" | ✅ |
+| Farming strategies (waystone + tablets…) auto-applied to each map, loot entry, profit/hour | ✅ |
 | Best next upgrade, trade search for rares, AI explanations | 🚧 |
 | Windows installer | 🚧 |
 

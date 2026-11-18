@@ -1,19 +1,38 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { AppStatus, TrackerApi } from '../shared/ipc'
+import type { AppStatus, ItemComparisonDTO, Result, TrackerApi } from '../shared/ipc'
+
+function subscribe<T>(channel: string, listener: (payload: T) => void): () => void {
+  const handler = (_e: IpcRendererEvent, payload: T) => listener(payload)
+  ipcRenderer.on(channel, handler)
+  return () => ipcRenderer.removeListener(channel, handler)
+}
 
 const api: TrackerApi = {
   getStatus: () => ipcRenderer.invoke('status:get'),
   getRecentRuns: (limit) => ipcRenderer.invoke('runs:recent', limit),
   chooseClientLog: () => ipcRenderer.invoke('log:choose'),
   endCurrentRun: () => ipcRenderer.invoke('runs:end-current'),
-  importBuild: (code) => ipcRenderer.invoke('pob:import', code),
+
+  getBuildSnapshot: () => ipcRenderer.invoke('pob:snapshot'),
+  importBuild: (code, opts) => ipcRenderer.invoke('pob:import', code, opts),
   compareItem: (itemText) => ipcRenderer.invoke('pob:compare-item', itemText),
-  getPrices: (league, type) => ipcRenderer.invoke('prices:get', league, type),
-  onStatusChanged: (listener) => {
-    const handler = (_e: IpcRendererEvent, status: AppStatus) => listener(status)
-    ipcRenderer.on('status:changed', handler)
-    return () => ipcRenderer.removeListener('status:changed', handler)
-  }
+  equipItem: (itemText) => ipcRenderer.invoke('pob:equip-item', itemText),
+  getVersionPerformance: () => ipcRenderer.invoke('build:performance'),
+  setClipboardWatch: (on) => ipcRenderer.invoke('clipboard:set-watch', on),
+  onItemCompared: (listener) => subscribe<Result<ItemComparisonDTO>>('item:compared', listener),
+
+  searchPrices: (q) => ipcRenderer.invoke('prices:search', q),
+  getPresets: () => ipcRenderer.invoke('presets:list'),
+  savePreset: (p) => ipcRenderer.invoke('presets:save', p),
+  deletePreset: (id) => ipcRenderer.invoke('presets:delete', id),
+  setActivePreset: (id, autoApply) => ipcRenderer.invoke('presets:set-active', id, autoApply),
+  getRunLines: (runId) => ipcRenderer.invoke('runs:lines', runId),
+  applyPresetToRun: (runId, presetId) => ipcRenderer.invoke('runs:apply-preset', runId, presetId),
+  addLoot: (runId, item) => ipcRenderer.invoke('runs:add-loot', runId, item),
+  removeLine: (runId, kind, lineId) => ipcRenderer.invoke('runs:remove-line', runId, kind, lineId),
+  refreshPrices: () => ipcRenderer.invoke('prices:refresh'),
+
+  onStatusChanged: (listener) => subscribe<AppStatus>('status:changed', listener)
 }
 
 contextBridge.exposeInMainWorld('tracker', api)

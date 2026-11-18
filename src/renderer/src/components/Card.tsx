@@ -23,7 +23,7 @@ export function Button({
   disabled?: boolean
   variant?: 'primary' | 'ghost'
 }) {
-  const base = 'rounded-md px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40'
+  const base = 'whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40'
   const style =
     variant === 'primary'
       ? 'bg-ember-500 text-stone-950 hover:bg-ember-400'

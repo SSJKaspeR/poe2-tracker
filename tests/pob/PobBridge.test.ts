@@ -62,6 +62,23 @@ describe.skipIf(!paths)('PobBridge (real Path of Building engine)', () => {
     expect(cmp.diff.Armour?.after).toBeGreaterThan(0)
   })
 
+  it('equips an item and keeps it after export/import', async () => {
+    await bridge.newBuild()
+    const equipped = await bridge.equipItem(BODY_ARMOUR)
+    expect(equipped.slot).toBe('Body Armour')
+    expect(equipped.stats.FireResist).toBe(-10)
+    expect(equipped.items?.some((i) => i.slot === 'Body Armour' && i.base === 'Iron Cuirass')).toBe(true)
+
+    const { code } = await bridge.exportCode()
+    await bridge.newBuild()
+    const reloaded = await bridge.loadCode(code)
+    expect(reloaded.stats.FireResist).toBe(-10)
+
+    // Comparing the same item again now changes nothing.
+    const cmp = await bridge.compareItem(BODY_ARMOUR)
+    expect(cmp.diff.FireResist).toBeUndefined()
+  })
+
   it('reports engine errors without crashing the bridge', async () => {
     await expect(bridge.compareItem('not an item')).rejects.toThrow()
     const r = await bridge.ping()

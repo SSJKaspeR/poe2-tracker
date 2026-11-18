@@ -1,5 +1,5 @@
 // Types shared between the main process, the preload script and the renderer.
-// Dates cross the IPC boundary as ISO strings.
+// Dates cross the IPC boundary as ISO strings. Currency values are in Divine Orbs.
 
 export interface RunDTO {
   id: string
@@ -16,6 +16,24 @@ export interface RunDTO {
 
 export type TrackerState = 'idle' | 'running' | 'pending_end'
 
+export interface ProfitSummaryDTO {
+  runs: number
+  activeMs: number
+  invested: number
+  looted: number
+  profit: number
+  profitPerHour: number | null
+  runsWithLoot: number
+}
+
+export interface ActiveBuildDTO {
+  buildId: number
+  name: string
+  versionId: number
+  versionLabel: string | null
+  versionCount: number
+}
+
 export interface AppStatus {
   clientLogPath: string | null
   logWatching: boolean
@@ -25,6 +43,13 @@ export interface AppStatus {
   /** When the player last entered the current map; add (now - this) to activeMs for a live timer. */
   segmentStartedAt: string | null
   today: { runs: number; activeMs: number; deaths: number }
+  todayProfit: ProfitSummaryDTO
+  build: ActiveBuildDTO | null
+  league: string | null
+  prices: { count: number; exaltedPerDivine: number | null; error: string | null }
+  activePresetId: number | null
+  autoApplyPreset: boolean
+  clipboardWatch: boolean
 }
 
 export type StatMap = Record<string, number>
@@ -41,6 +66,18 @@ export interface ItemComparisonDTO {
   before: StatMap
   after: StatMap
   diff: Record<string, { before: number; after: number; delta: number }>
+  /** Raw item text, so the UI can equip it. */
+  itemText?: string
+}
+
+export interface VersionPerformanceDTO {
+  versionId: number
+  label: string | null
+  createdAt: string
+  runs: number
+  activeMs: number
+  deaths: number
+  profit: ProfitSummaryDTO
 }
 
 export interface PriceDTO {
@@ -50,6 +87,31 @@ export interface PriceDTO {
   currency: string
 }
 
+export type InvestmentKind = 'waystone' | 'tablet' | 'currency' | 'other'
+
+export interface PresetItemDTO {
+  kind: InvestmentKind
+  label: string
+  itemId?: string
+  quantity: number
+  manualValue?: number
+}
+
+export interface PresetDTO {
+  id: number
+  name: string
+  items: PresetItemDTO[]
+  costPerMap: number
+  unpriced: string[]
+}
+
+export interface RunLinesDTO {
+  runId: string
+  strategyId: number | null
+  investments: { id: number; label: string; quantity: number; unitValue: number | null }[]
+  loot: { id: number; label: string; quantity: number; unitValue: number | null }[]
+}
+
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string }
 
 export interface TrackerApi {
@@ -57,8 +119,27 @@ export interface TrackerApi {
   getRecentRuns(limit?: number): Promise<RunDTO[]>
   chooseClientLog(): Promise<AppStatus>
   endCurrentRun(): Promise<AppStatus>
-  importBuild(code: string): Promise<Result<BuildSnapshotDTO>>
+
+  // Build
+  getBuildSnapshot(): Promise<Result<BuildSnapshotDTO | null>>
+  importBuild(code: string, opts: { newBuild: boolean; name?: string }): Promise<Result<BuildSnapshotDTO>>
   compareItem(itemText: string): Promise<Result<ItemComparisonDTO>>
-  getPrices(league: string, type: string): Promise<Result<PriceDTO[]>>
+  equipItem(itemText: string): Promise<Result<BuildSnapshotDTO>>
+  getVersionPerformance(): Promise<VersionPerformanceDTO[]>
+  setClipboardWatch(on: boolean): Promise<AppStatus>
+  onItemCompared(listener: (r: Result<ItemComparisonDTO>) => void): () => void
+
+  // Economy
+  searchPrices(query: string): Promise<PriceDTO[]>
+  getPresets(): Promise<PresetDTO[]>
+  savePreset(preset: { id?: number; name: string; items: PresetItemDTO[] }): Promise<PresetDTO[]>
+  deletePreset(id: number): Promise<PresetDTO[]>
+  setActivePreset(id: number | null, autoApply: boolean): Promise<AppStatus>
+  getRunLines(runId: string): Promise<RunLinesDTO>
+  applyPresetToRun(runId: string, presetId: number): Promise<RunLinesDTO>
+  addLoot(runId: string, item: { label: string; itemId?: string; quantity: number; manualValue?: number }): Promise<RunLinesDTO>
+  removeLine(runId: string, kind: 'loot' | 'investment', lineId: number): Promise<RunLinesDTO>
+  refreshPrices(): Promise<AppStatus>
+
   onStatusChanged(listener: (status: AppStatus) => void): () => void
 }

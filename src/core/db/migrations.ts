@@ -81,5 +81,18 @@ export const MIGRATIONS: Migration[] = [
         value       TEXT NOT NULL
       );
     `
+  },
+  {
+    version: 2,
+    sql: `
+      -- Farming strategy = what you put in each map (waystone + tablets + other), reused run after run.
+      CREATE TABLE strategy_presets (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT NOT NULL,
+        items_json  TEXT NOT NULL,      -- [{ kind, label, itemId?, quantity, manualValue? }]
+        created_at  TEXT NOT NULL
+      );
+      ALTER TABLE runs ADD COLUMN strategy_id INTEGER REFERENCES strategy_presets(id);
+    `
   }
 ]

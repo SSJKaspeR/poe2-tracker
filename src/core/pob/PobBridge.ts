@@ -175,6 +175,11 @@ export class PobBridge {
     return this.request('compare_item', { itemText, slot })
   }
 
+  /** Equip an item in its slot (replacing the current one) and return the new build stats. */
+  equipItem(itemText: string, slot?: string): Promise<BuildSnapshot & { slot: string }> {
+    return this.request('equip_item', { itemText, slot })
+  }
+
   compareNode(nodeId: number): Promise<{ node: { id: number; name: string } } & Omit<ItemComparison, 'slot' | 'item'>> {
     return this.request('compare_node', { nodeId })
   }

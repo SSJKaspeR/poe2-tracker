@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { AppDatabase } from '@core/db/Database'
 import { RunRepository } from '@core/db/RunRepository'
+import { MIGRATIONS } from '@core/db/migrations'
 import type { Run } from '@core/runs/RunTracker'
 
 const base: Run = {
@@ -35,6 +36,6 @@ describe('RunRepository', () => {
   it('is idempotent on migrations', () => {
     const db = new AppDatabase(':memory:')
     const v = db.db.prepare('SELECT COUNT(*) AS n FROM schema_version').get() as { n: number }
-    expect(v.n).toBe(1)
+    expect(v.n).toBe(MIGRATIONS.length)
   })
 })

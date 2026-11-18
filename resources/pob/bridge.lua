@@ -258,6 +258,24 @@ function commands.compare_item(req)
 	}
 end
 
+-- Equip an item (raw text) in its slot, replacing what is there, and recalculate.
+function commands.equip_item(req)
+	requireBuild()
+	assert(type(req.itemText) == "string", "itemText required")
+	local item = new("Item"):Item(req.itemText)
+	if not item.base then error("unrecognised item") end
+	item:NormaliseQuality()
+	local slotName = req.slot or item:GetPrimarySlot()
+	local slot = build.itemsTab.slots[slotName]
+	if not slot then error("unknown slot " .. tostring(slotName)) end
+	build.itemsTab:AddItem(item, true)
+	slot:SetSelItemId(item.id)
+	build.itemsTab:PopulateSlots()
+	build.buildFlag = true
+	runCallback("OnFrame")
+	return { slot = slotName, info = buildInfo(), stats = pickStats(build.calcsTab.mainOutput), items = equippedItems() }
+end
+
 -- Gain from allocating a single passive node (by node id).
 function commands.compare_node(req)
 	requireBuild()

@@ -1,10 +1,12 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { join, resolve } from 'node:path'
+import { ClipboardWatcher } from '../core/clipboard/ClipboardWatcher'
 import { resolveDevPobPaths } from '../core/pob/paths'
 import { TrackerService } from './TrackerService'
 
 let mainWindow: BrowserWindow | null = null
 let service: TrackerService | null = null
+let clipboardWatcher: ClipboardWatcher | null = null
 
 function pobOptions() {
   // Dev: engine installed by `npm run setup:pob` under <repo>/.pob.
@@ -65,9 +67,47 @@ function registerIpc(svc: TrackerService): void {
     if (!result.canceled && path) await svc.watchLog(path)
     return svc.status()
   })
-  ipcMain.handle('pob:import', (_e, code: string) => svc.importBuild(code))
+  ipcMain.handle('pob:snapshot', () => svc.buildSnapshot())
+  ipcMain.handle('pob:import', (_e, code: string, opts: { newBuild: boolean; name?: string }) => svc.importBuild(code, opts))
   ipcMain.handle('pob:compare-item', (_e, text: string) => svc.compareItem(text))
-  ipcMain.handle('prices:get', (_e, league: string, type: string) => svc.prices(league, type))
+  ipcMain.handle('pob:equip-item', (_e, text: string) => svc.equipItem(text))
+  ipcMain.handle('build:performance', () => svc.versionPerformance())
+  ipcMain.handle('clipboard:set-watch', (_e, on: boolean) => {
+    svc.setClipboardWatch(on)
+    syncClipboardWatcher(svc)
+    return svc.status()
+  })
+
+  ipcMain.handle('prices:search', (_e, q: string) => svc.searchPrices(q))
+  ipcMain.handle('prices:refresh', async () => {
+    await svc.refreshPrices()
+    return svc.status()
+  })
+  ipcMain.handle('presets:list', () => svc.presets())
+  ipcMain.handle('presets:save', (_e, p) => svc.savePreset(p))
+  ipcMain.handle('presets:delete', (_e, id: number) => svc.deletePreset(id))
+  ipcMain.handle('presets:set-active', (_e, id: number | null, autoApply: boolean) => {
+    svc.setActivePreset(id, autoApply)
+    return svc.status()
+  })
+  ipcMain.handle('runs:lines', (_e, runId: string) => svc.runLines(runId))
+  ipcMain.handle('runs:apply-preset', (_e, runId: string, presetId: number) => svc.applyPresetToRun(runId, presetId))
+  ipcMain.handle('runs:add-loot', (_e, runId: string, item) => svc.addLoot(runId, item))
+  ipcMain.handle('runs:remove-line', (_e, runId: string, kind: 'loot' | 'investment', lineId: number) =>
+    svc.removeLine(runId, kind, lineId)
+  )
+}
+
+/** Ctrl+C on an item in game → automatic comparison. */
+function syncClipboardWatcher(svc: TrackerService): void {
+  if (!clipboardWatcher) {
+    clipboardWatcher = new ClipboardWatcher(
+      () => clipboard.readText(),
+      (text) => void svc.onCopiedItem(text)
+    )
+  }
+  if (svc.status().clipboardWatch) void clipboardWatcher.start()
+  else clipboardWatcher.stop()
 }
 
 app.whenReady().then(async () => {
@@ -79,9 +119,13 @@ app.whenReady().then(async () => {
     }
   })
   service.on('status', (status) => mainWindow?.webContents.send('status:changed', status))
+  service.on('item-compared', (result) => {
+    mainWindow?.webContents.send('item:compared', result)
+  })
   registerIpc(service)
   createWindow()
   await service.start()
+  syncClipboardWatcher(service)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -93,6 +137,7 @@ app.on('before-quit', (event) => {
   if (quitting || !service) return
   event.preventDefault()
   quitting = true
+  clipboardWatcher?.stop()
   void service.stop().finally(() => app.quit())
 })
 

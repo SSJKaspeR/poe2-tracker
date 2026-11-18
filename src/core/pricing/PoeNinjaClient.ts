@@ -102,6 +102,25 @@ export class PoeNinjaClient {
     }
   }
 
+  /** Leagues known to poe.ninja, current challenge league first. Cached for a day. */
+  async leagues(): Promise<{ id: string; name: string }[]> {
+    const key = 'leagues'
+    const cached = this.cache.get(key)
+    if (cached && this.now() - cached.fetchedAt < 24 * this.ttlMs) {
+      return JSON.parse(cached.payload) as { id: string; name: string }[]
+    }
+    try {
+      const res = await this.limiter.schedule(() =>
+        this.http.get<{ id: string; name: string }[]>('/poe2/api/economy/leagues')
+      )
+      this.cache.set(key, JSON.stringify(res.data), this.now())
+      return res.data
+    } catch (err) {
+      if (cached) return JSON.parse(cached.payload) as { id: string; name: string }[]
+      throw err
+    }
+  }
+
   async prices(league: string, type: string): Promise<Price[]> {
     return toPrices(await this.exchangeOverview(league, type))
   }

@@ -48,3 +48,16 @@ export function formatStat(key: string, value: number): string {
   if (Math.abs(value) >= 1000) return Math.round(value).toLocaleString()
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
+
+/**
+ * Currency value (stored in Divine) shown the way players think:
+ * ≥ 1 div in Divine, below that in Exalted when the rate is known.
+ */
+export function formatCurrency(divine: number, exaltedPerDivine: number | null, opts: { sign?: boolean } = {}): string {
+  const sign = opts.sign && divine > 0 ? '+' : ''
+  if (Math.abs(divine) >= 1 || !exaltedPerDivine) {
+    return `${sign}${divine.toFixed(Math.abs(divine) >= 10 ? 0 : 2)} div`
+  }
+  const ex = divine * exaltedPerDivine
+  return `${sign}${ex.toFixed(Math.abs(ex) >= 10 ? 0 : 1)} ex`
+}
