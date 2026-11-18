@@ -133,7 +133,11 @@ try {
   const changes = await timeline.innerText()
   if (!/Life \+95/.test(changes) || !/Fire res \+40%/.test(changes)) fail(`timeline: ${changes}`)
   if (!/1 map/.test(changes)) fail(`timeline perf: ${changes}`)
-  await win.locator('section', { hasText: 'Equipment' }).getByText('Body Armour').waitFor({ timeout: 5_000 })
+  const equipment = win.locator('section', { hasText: 'Equipment & gear check' })
+  await equipment.getByText('Body Armour').waitFor({ timeout: 5_000 })
+  await equipment.getByText(/At least 4 open modifiers \(2\/6\)/).waitFor({ timeout: 10_000 })
+  await equipment.getByText(/more sockets possible/).waitFor({ timeout: 5_000 })
+  await win.getByText(/Gear check: .*easy win/).waitFor({ timeout: 5_000 })
   await win.screenshot({ path: join(SHOTS, 'screenshot-build.png') })
 
   step('Ctrl+C from another tab brings the Dashboard back')

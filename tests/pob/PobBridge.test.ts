@@ -79,6 +79,38 @@ describe.skipIf(!paths)('PobBridge (real Path of Building engine)', () => {
     expect(cmp.diff.FireResist).toBeUndefined()
   })
 
+  it('audits equipped items: sockets, runes, modifiers, quality', async () => {
+    await bridge.newBuild()
+    await bridge.equipItem(`Item Class: Body Armours
+Rarity: Rare
+Gloom Shell
+Iron Cuirass
+--------
+Quality: +10% (augmented)
+--------
+Sockets: S S
+--------
+Item Level: 30
+--------
++12% to Fire Resistance (rune)
+--------
++90 to maximum Life
++40% to Fire Resistance`)
+    const audit = await bridge.auditItems()
+    const body = audit.items.find((i) => i.slot === 'Body Armour')!
+    expect(body).toMatchObject({
+      sockets: 2,
+      socketLimit: 4,
+      runesFilled: 1,
+      explicitLines: 2,
+      affixLimit: 6,
+      quality: 10,
+      maxQuality: 20,
+      baseLevel: 11,
+      itemLevel: 30
+    })
+  })
+
   it('reports engine errors without crashing the bridge', async () => {
     await expect(bridge.compareItem('not an item')).rejects.toThrow()
     const r = await bridge.ping()

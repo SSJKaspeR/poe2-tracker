@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { BuildSnapshotDTO, BuildVersionDTO, StatMap } from '@shared/ipc'
+import type { BuildSnapshotDTO, BuildVersionDTO, GearCheckDTO, StatMap } from '@shared/ipc'
 import { Card } from '../components/Card'
 import { formatDuration, formatStat, isImprovement, statLabel } from '../format'
 import { useMoney, useTracker } from '../store'
@@ -41,12 +41,14 @@ export function BuildPage() {
   const ready = Boolean(status?.pob.running)
   const [snapshot, setSnapshot] = useState<BuildSnapshotDTO | null>(null)
   const [versions, setVersions] = useState<BuildVersionDTO[]>([])
+  const [gear, setGear] = useState<GearCheckDTO[] | null>(null)
   const versionId = build?.versionId ?? null
   const todayRuns = status?.today.runs
 
   useEffect(() => {
     if (!ready || versionId === null) return
     void window.tracker.getBuildSnapshot().then((r) => r.ok && setSnapshot(r.value))
+    void window.tracker.getGearCheck().then((r) => setGear(r.ok ? r.value : null))
   }, [ready, versionId])
 
   useEffect(() => {
@@ -75,6 +77,7 @@ export function BuildPage() {
               .join(' · ')}
           </div>
           {snapshot && <Warnings stats={snapshot.stats} />}
+          {gear && <GearSummary gear={gear} />}
         </Card>
 
         {snapshot ? (
@@ -104,17 +107,31 @@ export function BuildPage() {
       </div>
 
       <div className="space-y-4">
-        <Card title="Equipment">
+        <Card title="Equipment & gear check">
           {snapshot?.items?.length ? (
-            <ul className="space-y-1 text-sm">
-              {snapshot.items.map((it) => (
-                <li key={it.slot} className="flex justify-between gap-3">
-                  <span className="shrink-0 text-stone-500">{it.slot}</span>
-                  <span className={`truncate text-right ${RARITY_COLOR[it.rarity] ?? 'text-stone-200'}`} title={it.name}>
-                    {it.name}
-                  </span>
-                </li>
-              ))}
+            <ul className="space-y-2 text-sm">
+              {snapshot.items.map((it) => {
+                const findings = gear?.find((g) => g.slot === it.slot)?.findings ?? []
+                return (
+                  <li key={it.slot}>
+                    <div className="flex justify-between gap-3">
+                      <span className="shrink-0 text-stone-500">{it.slot}</span>
+                      <span className={`truncate text-right ${RARITY_COLOR[it.rarity] ?? 'text-stone-200'}`} title={it.name}>
+                        {it.name}
+                      </span>
+                    </div>
+                    {findings.length > 0 && (
+                      <ul className="mt-0.5 space-y-0.5 text-xs">
+                        {findings.map((f) => (
+                          <li key={f.kind} className={FINDING_COLOR[f.level]}>
+                            {FINDING_ICON[f.level]} {f.message}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           ) : (
             <p className="text-sm text-stone-500">No item in the imported build.</p>
@@ -195,6 +212,33 @@ function compare(current: number, previous: number | null, lowerIsBetter: boolea
       ({change > 0 ? '+' : ''}
       {Math.round(change * 100)}%)
     </span>
+  )
+}
+
+const FINDING_COLOR = { easy: 'text-amber-400', upgrade: 'text-sky-300', info: 'text-stone-500' } as const
+const FINDING_ICON = { easy: '▲', upgrade: '◆', info: '·' } as const
+
+function GearSummary({ gear }: { gear: GearCheckDTO[] }) {
+  const all = gear.flatMap((g) => g.findings)
+  const easy = all.filter((f) => f.level === 'easy').length
+  const upgrades = all.filter((f) => f.level === 'upgrade').length
+  if (easy + upgrades === 0) return <p className="mt-2 text-sm text-emerald-400">✓ Nothing left to finish on your gear.</p>
+  return (
+    <p className="mt-2 text-sm text-stone-300">
+      Gear check:{' '}
+      {easy > 0 && (
+        <span className="text-amber-400">
+          {easy} easy win{easy > 1 ? 's' : ''}
+        </span>
+      )}
+      {easy > 0 && upgrades > 0 && ' · '}
+      {upgrades > 0 && (
+        <span className="text-sky-300">
+          {upgrades} item{upgrades > 1 ? 's' : ''} worth replacing
+        </span>
+      )}
+      <span className="text-stone-500"> — details next to each item.</span>
+    </p>
   )
 }
 

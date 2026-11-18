@@ -264,7 +264,8 @@ function commands.equip_item(req)
 	assert(type(req.itemText) == "string", "itemText required")
 	local item = new("Item"):Item(req.itemText)
 	if not item.base then error("unrecognised item") end
-	item:NormaliseQuality()
+	-- No NormaliseQuality here: the equipped item keeps its real quality.
+	if not item.quality then item.quality = 0 end
 	local slotName = req.slot or item:GetPrimarySlot()
 	local slot = build.itemsTab.slots[slotName]
 	if not slot then error("unknown slot " .. tostring(slotName)) end
@@ -274,6 +275,67 @@ function commands.equip_item(req)
 	build.buildFlag = true
 	runCallback("OnFrame")
 	return { slot = slotName, info = buildInfo(), stats = pickStats(build.calcsTab.mainOutput), items = equippedItems() }
+end
+
+-- Best ordinary base of the same type/subType the character can wear.
+local function bestBaseFor(item, charLevel)
+	if not item.base or not data.itemBases then return nil end
+	local best, bestName
+	for name, base in pairs(data.itemBases) do
+		local tags = base.tags or {}
+		if base.type == item.base.type and base.subType == item.base.subType
+			and not base.hidden and not tags.not_for_sale and not tags.runeforged then
+			local req = base.req and base.req.level or 0
+			if req <= charLevel and (not best or req > (best.req and best.req.level or 0)) then
+				best, bestName = base, name
+			end
+		end
+	end
+	if not best then return nil end
+	return { name = bestName, level = best.req and best.req.level or 0 }
+end
+
+-- Raw facts about each equipped item, for the "gear check" (the app applies the rules).
+function commands.audit_items()
+	requireBuild()
+	local charLevel = build.characterLevel or 1
+	local out = {}
+	for _, slot in ipairs(build.itemsTab.orderedSlots) do
+		if not slot.inactive and slot.selItemId and slot.selItemId ~= 0 then
+			local item = build.itemsTab.items[slot.selItemId]
+			if item and item.base then
+				local filled = 0
+				for _, rune in ipairs(item.runes or {}) do
+					if rune and rune ~= "None" and rune ~= "" then filled = filled + 1 end
+				end
+				-- PoB may infer runes from "(rune)" lines; count those lines as a fallback.
+				filled = math.max(filled, math.min(#(item.runeModLines or {}), item.itemSocketCount or 0))
+				local best = bestBaseFor(item, charLevel)
+				out[#out + 1] = {
+					slot = slot.slotName,
+					name = item.name,
+					rarity = item.rarity,
+					base = item.baseName,
+					corrupted = item.corrupted and true or false,
+					mirrored = item.mirrored and true or false,
+					itemLevel = item.itemLevel,
+					quality = item.quality or 0,
+					maxQuality = item.base.quality or 0,
+					baseLevel = item.base.req and item.base.req.level or 0,
+					sockets = item.itemSocketCount or 0,
+					socketLimit = item.base.socketLimit or 0,
+					runesFilled = filled,
+					explicitLines = #(item.explicitModLines or {}),
+					-- PoE 2: rare = 3 prefixes + 3 suffixes (jewels 4 in total), magic = 1 + 1.
+					affixLimit = (item.affixLimit and item.affixLimit > 0) and item.affixLimit
+						or (item.rarity == "RARE" and (item.type == "Jewel" and 4 or 6))
+						or (item.rarity == "MAGIC" and 2) or 0,
+					bestBase = best,
+				}
+			end
+		end
+	end
+	return { characterLevel = charLevel, items = out }
 end
 
 -- Gain from allocating a single passive node (by node id).

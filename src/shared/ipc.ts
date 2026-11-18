@@ -100,6 +100,19 @@ export interface BuildVersionDTO {
   performance: { runs: number; activeMs: number; deaths: number; profit: ProfitSummaryDTO }
 }
 
+export interface GearFindingDTO {
+  kind: string
+  level: 'easy' | 'upgrade' | 'info'
+  message: string
+}
+
+export interface GearCheckDTO {
+  slot: string
+  name: string
+  rarity: string
+  findings: GearFindingDTO[]
+}
+
 export interface PriceDTO {
   id: string
   name: string
@@ -192,6 +205,8 @@ export interface TrackerApi {
   getVersionPerformance(): Promise<VersionPerformanceDTO[]>
   /** Versions of the active build, newest first, with stats and results. */
   getBuildVersions(): Promise<BuildVersionDTO[]>
+  /** Easy wins left on equipped items (empty sockets, open modifiers, old bases…). */
+  getGearCheck(): Promise<Result<GearCheckDTO[]>>
   /** Completed runs with economy; `sinceDays` null = all time. */
   getRunsDetailed(sinceDays: number | null): Promise<RunDetailDTO[]>
   setClipboardWatch(on: boolean): Promise<AppStatus>

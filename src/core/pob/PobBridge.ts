@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { delimiter, join } from 'node:path'
 import { createInterface } from 'node:readline'
+import type { ItemAudit } from '../build/gearCheck'
 
 /**
  * Runs the Path of Building (PoE 2) engine headless in a LuaJIT child process
@@ -178,6 +179,11 @@ export class PobBridge {
   /** Equip an item in its slot (replacing the current one) and return the new build stats. */
   equipItem(itemText: string, slot?: string): Promise<BuildSnapshot & { slot: string }> {
     return this.request('equip_item', { itemText, slot })
+  }
+
+  /** Facts about every equipped item (sockets, modifiers, base level…) for the gear check. */
+  auditItems(): Promise<{ characterLevel: number; items: ItemAudit[] }> {
+    return this.request('audit_items')
   }
 
   compareNode(nodeId: number): Promise<{ node: { id: number; name: string } } & Omit<ItemComparison, 'slot' | 'item'>> {

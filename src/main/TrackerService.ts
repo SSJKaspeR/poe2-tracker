@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
+import { checkGear } from '../core/build/gearCheck'
 import { BuildRepository } from '../core/db/BuildRepository'
 import { AppDatabase } from '../core/db/Database'
 import { RunRepository, type StoredRun } from '../core/db/RunRepository'
@@ -18,6 +19,7 @@ import type {
   AppStatus,
   BuildSnapshotDTO,
   BuildVersionDTO,
+  GearCheckDTO,
   ItemComparisonDTO,
   PresetDTO,
   PresetItemDTO,
@@ -276,6 +278,12 @@ export class TrackerService extends EventEmitter {
         }
       }
     })
+  }
+
+  async gearCheck(): Promise<Result<GearCheckDTO[]>> {
+    if (!this.pob || this.activeVersionId() === null) return { ok: true, value: [] }
+    await this.pobReady
+    return wrap(async () => checkGear(await this.pob!.auditItems()))
   }
 
   runsDetailed(sinceDays: number | null): RunDetailDTO[] {
