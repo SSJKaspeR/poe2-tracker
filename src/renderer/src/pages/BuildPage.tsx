@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { BuildSnapshotDTO, BuildVersionDTO, GearCheckDTO, StatMap } from '@shared/ipc'
 import { Card } from '../components/Card'
+import { GuideCompare } from '../components/GuideCompare'
 import { formatDuration, formatStat, isImprovement, statLabel } from '../format'
 import { useMoney, useTracker } from '../store'
 
@@ -79,6 +80,8 @@ export function BuildPage() {
           {snapshot && <Warnings stats={snapshot.stats} />}
           {gear && <GearSummary gear={gear} />}
         </Card>
+
+        <GuideCompare />
 
         {snapshot ? (
           <div className="grid grid-cols-2 gap-4">

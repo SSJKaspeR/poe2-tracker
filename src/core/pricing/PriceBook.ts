@@ -21,8 +21,17 @@ export const EXCHANGE_TYPES = [
   'Verisium'
 ] as const
 
-/** Item (stash) overview categories needed for investment tracking. Uniques come with the upgrade finder. */
-export const STASH_TYPES = ['PrecursorTablets', 'UniqueTablets'] as const
+/** Item (stash) overview categories: tablets for investment, uniques for build comparison. */
+export const STASH_TYPES = [
+  'PrecursorTablets',
+  'UniqueTablets',
+  'UniqueWeapons',
+  'UniqueArmours',
+  'UniqueAccessories',
+  'UniqueFlasks',
+  'UniqueCharms',
+  'UniqueJewels'
+] as const
 
 /** Lookup table over every cached price, by poe.ninja id or by item name. */
 export class PriceBook {
@@ -46,6 +55,18 @@ export class PriceBook {
     return this.byId.get(idOrName) ?? this.byName.get(normalise(idOrName))
   }
 
+  /**
+   * Unique price by name and base: poe.ninja ids are "<name>-<base>" slugs
+   * (e.g. temporalis-silk-robe), which tells apart variants like Runemastered bases.
+   */
+  getUnique(name: string, base?: string): Price | undefined {
+    if (base) {
+      const exact = this.byId.get(slug(`${name} ${base}`))
+      if (exact) return exact
+    }
+    return this.byName.get(normalise(name))
+  }
+
   /** Simple contains search for the item picker. */
   search(query: string, limit = 20): Price[] {
     const q = normalise(query)
@@ -61,6 +82,14 @@ export class PriceBook {
     })
     return out.slice(0, limit)
   }
+}
+
+function slug(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 }
 
 function normalise(s: string): string {

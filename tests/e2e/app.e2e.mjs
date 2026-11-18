@@ -17,6 +17,7 @@ const work = mkdtempSync(join(tmpdir(), 'poe2-e2e-'))
 const logPath = join(work, 'Client.txt')
 writeFileSync(logPath, '')
 const BUILD_CODE = readFileSync(join(ROOT, 'tests', 'fixtures', 'build-level1.pobcode'), 'utf8').trim()
+const GUIDE_CODE = readFileSync(join(ROOT, 'tests', 'fixtures', 'build-guide.pobcode'), 'utf8').trim()
 
 const pad = (n) => String(n).padStart(2, '0')
 function line(date, msg) {
@@ -139,6 +140,23 @@ try {
   await equipment.getByText(/more sockets possible/).waitFor({ timeout: 5_000 })
   await win.getByText(/Gear check: .*easy win/).waitFor({ timeout: 5_000 })
   await win.screenshot({ path: join(SHOTS, 'screenshot-build.png') })
+
+  step('Build tab: compare with a guide build')
+  const guide = win.locator('section', { hasText: 'Compare with a guide build' })
+  await guide.getByPlaceholder('Guide PoB code (eNrt…)').fill(GUIDE_CODE)
+  await guide.getByPlaceholder(/Name \(optional/).fill('Test guide')
+  await guide.getByRole('button', { name: 'Compare' }).click()
+  await guide.getByText('Test guide').waitFor({ timeout: 30_000 })
+  const g = await guide.innerText()
+  if (!/Helmet[\s\S]*Empty slot[\s\S]*Black Sun Crest/.test(g)) fail(`guide helmet: ${g}`)
+  if (!/missing \+30% to Cold Resistance/.test(g)) fail(`guide missing mods: ${g}`)
+  if (!/lower \+120 to maximum Life \(you: 90\)/.test(g)) fail(`guide lower mods: ${g}`)
+  if (!/Body Armour[\s\S]*Life \+3\d/.test(g)) fail(`guide impact: ${g}`)
+  // The player's own build must be back in the engine after reading the guide.
+  const stillMine = await win.locator('section', { hasText: 'Character' }).first().innerText()
+  if (!stillMine.includes('Punch Ranger')) fail(`player build replaced: ${stillMine}`)
+  await guide.scrollIntoViewIfNeeded()
+  await win.screenshot({ path: join(SHOTS, 'screenshot-guide.png'), fullPage: false })
 
   step('Ctrl+C from another tab brings the Dashboard back')
   await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), ITEM.replace('+90 to maximum Life', '+10 to maximum Life'))

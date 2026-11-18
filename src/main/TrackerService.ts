@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
 import { checkGear } from '../core/build/gearCheck'
+import { compareGear, impactScore, type DetailedItem } from '../core/build/targetCompare'
 import { BuildRepository } from '../core/db/BuildRepository'
 import { AppDatabase } from '../core/db/Database'
 import { RunRepository, type StoredRun } from '../core/db/RunRepository'
@@ -20,6 +21,7 @@ import type {
   BuildSnapshotDTO,
   BuildVersionDTO,
   GearCheckDTO,
+  GuideComparisonDTO,
   ItemComparisonDTO,
   PresetDTO,
   PresetItemDTO,
@@ -59,6 +61,8 @@ export class TrackerService extends EventEmitter {
   private pobVersion: string | null = null
   private pobError: string | null = null
   private pobReady: Promise<void> = Promise.resolve()
+  /** PoB holds one build at a time: every engine operation goes through this queue. */
+  private pobQueue: Promise<unknown> = Promise.resolve()
 
   constructor(opts: {
     dbPath: string
@@ -186,13 +190,13 @@ export class TrackerService extends EventEmitter {
   async buildSnapshot(): Promise<Result<BuildSnapshotDTO | null>> {
     if (!this.pob || this.activeVersionId() === null) return { ok: true, value: null }
     await this.pobReady
-    return wrap(() => this.pob!.stats())
+    return wrap(() => this.withPob(() => this.pob!.stats()))
   }
 
   async importBuild(code: string, opts: { newBuild: boolean; name?: string }): Promise<Result<BuildSnapshotDTO>> {
     if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
     await this.pobReady
-    const res = await wrap(() => this.pob!.loadCode(code.trim()))
+    const res = await wrap(() => this.withPob(() => this.pob!.loadCode(code.trim())))
     if (!res.ok) return res
     const snap = res.value
     const active = this.activeBuild()
@@ -213,7 +217,7 @@ export class TrackerService extends EventEmitter {
   async compareItem(itemText: string): Promise<Result<ItemComparisonDTO>> {
     if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
     await this.pobReady
-    const res = await wrap(() => this.pob!.compareItem(itemText))
+    const res = await wrap(() => this.withPob(() => this.pob!.compareItem(itemText)))
     return res.ok ? { ok: true, value: { ...res.value, itemText } } : res
   }
 
@@ -229,7 +233,7 @@ export class TrackerService extends EventEmitter {
     const active = this.activeBuild()
     if (!active) return { ok: false, error: 'Import your build first' }
     await this.pobReady
-    const res = await wrap(async () => {
+    const res = await wrap(() => this.withPob(async () => {
       const snap = await this.pob!.equipItem(itemText)
       const { code } = await this.pob!.exportCode()
       const itemName = firstItemName(itemText)
@@ -240,7 +244,7 @@ export class TrackerService extends EventEmitter {
       })
       this.setSetting('activeBuildVersionId', String(v.id))
       return snap
-    })
+    }))
     this.emitStatus()
     return res
   }
@@ -283,7 +287,92 @@ export class TrackerService extends EventEmitter {
   async gearCheck(): Promise<Result<GearCheckDTO[]>> {
     if (!this.pob || this.activeVersionId() === null) return { ok: true, value: [] }
     await this.pobReady
-    return wrap(async () => checkGear(await this.pob!.auditItems()))
+    return wrap(() => this.withPob(async () => checkGear(await this.pob!.auditItems())))
+  }
+
+  // ── Guide build ───────────────────────────────────────────────────────────
+
+  /**
+   * Read a guide build once (stats + gear), then put the player's build back in
+   * the engine. The snapshot is stored per build, so the guide is only parsed once.
+   */
+  async setGuideBuild(code: string, name?: string): Promise<Result<GuideComparisonDTO>> {
+    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    const active = this.activeBuild()
+    if (!active) return { ok: false, error: 'Import your own build first' }
+    await this.pobReady
+    const res = await wrap(() =>
+      this.withPob(async () => {
+        try {
+          const snap = await this.pob!.loadCode(code.trim(), 'Guide')
+          const { items } = await this.pob!.itemsDetail()
+          const guide: StoredGuide = {
+            code: code.trim(),
+            name: name?.trim() || defaultBuildName(snap),
+            importedAt: new Date().toISOString(),
+            info: snap.info,
+            stats: snap.stats,
+            items
+          }
+          this.setSetting(`guide:${active.buildId}`, JSON.stringify(guide))
+        } finally {
+          await this.loadActiveVersion()
+        }
+      })
+    )
+    if (!res.ok) return res
+    const cmp = await this.guideComparison()
+    return cmp.ok && cmp.value ? { ok: true, value: cmp.value } : { ok: false, error: cmp.ok ? 'No guide' : cmp.error }
+  }
+
+  clearGuideBuild(): void {
+    const active = this.activeBuild()
+    if (active) this.deleteSetting(`guide:${active.buildId}`)
+  }
+
+  async guideComparison(): Promise<Result<GuideComparisonDTO | null>> {
+    const active = this.activeBuild()
+    const raw = active ? this.getSetting(`guide:${active.buildId}`) : null
+    if (!raw || !this.pob) return { ok: true, value: null }
+    const guide = JSON.parse(raw) as StoredGuide
+    await this.pobReady
+    return wrap(() =>
+      this.withPob(async () => {
+        const [{ items: playerItems }, playerSnap] = [await this.pob!.itemsDetail(), await this.pob!.stats()]
+        const slots = await Promise.all(
+          compareGear(guide.items, playerItems).map(async (c) => {
+            const g = guide.items.find((i) => i.slot === c.slot)
+            let impact: GuideComparisonDTO['slots'][number]['impact'] = null
+            // Ask PoB what the guide's item would do on the player's build.
+            if (g?.raw && c.status !== 'match' && c.status !== 'not_in_guide') {
+              try {
+                impact = (await this.pob!.compareItem(g.raw, c.slot)).diff
+              } catch {
+                impact = null
+              }
+            }
+            const uniquePrice =
+              g?.rarity === 'UNIQUE' && (c.status === 'missing_unique' || c.status === 'empty')
+                ? (this.priceBook.getUnique(g.title ?? g.name, g.base)?.value ?? null)
+                : null
+            return {
+              ...c,
+              missing: c.missing.map(({ text, want, have }) => ({ text, want, have })),
+              lower: c.lower.map(({ text, want, have }) => ({ text, want, have })),
+              impact,
+              impactScore: impact ? impactScore(impact) : 0,
+              uniquePrice
+            }
+          })
+        )
+        slots.sort((a, b) => b.impactScore - a.impactScore)
+        const keys = ['CombinedDPS', 'Life', 'EnergyShield', 'TotalEHP', 'Spirit', 'Armour', 'Evasion', 'FireResist', 'ColdResist', 'LightningResist', 'ChaosResist', 'EffectiveMovementSpeedMod']
+        const stats = keys
+          .filter((k) => guide.stats[k] !== undefined && playerSnap.stats[k] !== undefined)
+          .map((k) => ({ key: k, player: playerSnap.stats[k]!, guide: guide.stats[k]! }))
+        return { guideName: guide.name, importedAt: guide.importedAt, guideInfo: guide.info, stats, slots }
+      })
+    )
   }
 
   runsDetailed(sinceDays: number | null): RunDetailDTO[] {
@@ -489,13 +578,13 @@ export class TrackerService extends EventEmitter {
 
   private async startPob(): Promise<void> {
     if (!this.pob) return
+    const pob = this.pob
     try {
-      await this.pob.start()
-      this.pobVersion = (await this.pob.ping()).version ?? null
-      const versionId = this.activeVersionId()
-      const version = versionId !== null ? this.builds.getVersion(versionId) : null
-      if (version) await this.pob.loadCode(version.pobCode)
-      else await this.pob.newBuild()
+      await this.withPob(async () => {
+        await pob.start()
+        this.pobVersion = (await pob.ping()).version ?? null
+        await this.loadActiveVersion()
+      })
       this.pobError = null
     } catch (err) {
       this.pobError = err instanceof Error ? err.message : String(err)
@@ -504,6 +593,20 @@ export class TrackerService extends EventEmitter {
   }
 
   /** Current softcore challenge league from poe.ninja, or null when unreachable. */
+  private withPob<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.pobQueue.then(fn, fn)
+    this.pobQueue = next.catch(() => undefined)
+    return next
+  }
+
+  /** Put the player's active build back in the engine (or an empty build). Call inside withPob. */
+  private async loadActiveVersion(): Promise<void> {
+    const versionId = this.activeVersionId()
+    const version = versionId !== null ? this.builds.getVersion(versionId) : null
+    if (version) await this.pob!.loadCode(version.pobCode)
+    else await this.pob!.newBuild()
+  }
+
   private async pickLeague(): Promise<string | null> {
     try {
       const leagues = await this.pricing.leagues()
@@ -574,6 +677,15 @@ function toDTO(r: Run | StoredRun, endReason: string | null): RunDTO {
     endReason,
     ...('kind' in r ? { kind: r.kind, outcome: r.outcome } : {})
   }
+}
+
+interface StoredGuide {
+  code: string
+  name: string
+  importedAt: string
+  info: BuildSnapshotDTO['info']
+  stats: Record<string, number>
+  items: DetailedItem[]
 }
 
 function toSessionDTO(s: SessionSummary): SessionSummaryDTO {

@@ -28,6 +28,7 @@ Free, open-source, local-first desktop tracker for **Path of Exile 2**.
 | Sessions with a farming mode: rush N maps, pinnacle boss attempts (kill/fail), hideout stash/crafting — real profit/hour over the whole session | ✅ |
 | Maps tab: history by period, per-run detail, stats by map | ✅ |
 | Build tab: full stat sheet, equipment, every change with its stat diff and its impact on your maps | ✅ |
+| Guide build comparison: paste the PoB of the build you follow → stats vs guide, slot-by-slot missing/lower mods, what each guide item would give you (PoB), price of missing uniques | ✅ |
 | Gear check: empty rune sockets, sockets still possible, open modifiers, missing quality, outdated bases, low item level | ✅ |
 | Best next upgrade, trade search for rares, AI explanations | 🚧 |
 | Windows installer | 🚧 |

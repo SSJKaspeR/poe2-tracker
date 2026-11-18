@@ -338,6 +338,48 @@ function commands.audit_items()
 	return { characterLevel = charLevel, items = out }
 end
 
+-- Mod line text with ranges resolved ("+(80-100) to maximum Life" → "+90 to maximum Life").
+local function resolvedLines(modLines)
+	local out = {}
+	for _, ml in ipairs(modLines or {}) do
+		if not ml.disabled then
+			local line = ml.line
+			if ml.range then
+				line = itemLib.applyRange(ml.line, ml.range, ml.valueScalar) or ml.line
+			end
+			line = line:gsub("%^x%x%x%x%x%x%x", ""):gsub("%^%d", "")
+			if not itemLib.isZeroValueLine(line) then out[#out + 1] = line end
+		end
+	end
+	return out
+end
+
+-- Every equipped item with its raw text (re-usable with compare_item) and its mod lines.
+function commands.items_detail()
+	requireBuild()
+	local out = {}
+	for _, slot in ipairs(build.itemsTab.orderedSlots) do
+		if not slot.inactive and slot.selItemId and slot.selItemId ~= 0 then
+			local item = build.itemsTab.items[slot.selItemId]
+			if item and item.base then
+				local ok, raw = pcall(function() return item:BuildRaw() end)
+				out[#out + 1] = {
+					slot = slot.slotName,
+					name = item.name,
+					title = item.title,
+					rarity = item.rarity,
+					base = item.baseName,
+					raw = ok and raw or item.raw,
+					implicits = resolvedLines(item.implicitModLines),
+					explicits = resolvedLines(item.explicitModLines),
+					runes = resolvedLines(item.runeModLines),
+				}
+			end
+		end
+	end
+	return { items = out }
+end
+
 -- Gain from allocating a single passive node (by node id).
 function commands.compare_node(req)
 	requireBuild()

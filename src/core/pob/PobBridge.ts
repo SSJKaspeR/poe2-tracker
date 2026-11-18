@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { delimiter, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import type { ItemAudit } from '../build/gearCheck'
+import type { DetailedItem } from '../build/targetCompare'
 
 /**
  * Runs the Path of Building (PoE 2) engine headless in a LuaJIT child process
@@ -184,6 +185,11 @@ export class PobBridge {
   /** Facts about every equipped item (sockets, modifiers, base level…) for the gear check. */
   auditItems(): Promise<{ characterLevel: number; items: ItemAudit[] }> {
     return this.request('audit_items')
+  }
+
+  /** Every equipped item with raw text and resolved mod lines. */
+  itemsDetail(): Promise<{ items: DetailedItem[] }> {
+    return this.request('items_detail')
   }
 
   compareNode(nodeId: number): Promise<{ node: { id: number; name: string } } & Omit<ItemComparison, 'slot' | 'item'>> {

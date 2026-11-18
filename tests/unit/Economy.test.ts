@@ -107,6 +107,19 @@ describe('Economy', () => {
   })
 })
 
+describe('PriceBook uniques', () => {
+  it('matches a unique by name and base slug, else by name', () => {
+    const book = new PriceBook([
+      { id: 'temporalis-runemastered-silk-robe', name: 'Temporalis', value: 30, currency: 'divine' },
+      { id: 'temporalis-silk-robe', name: 'Temporalis', value: 12, currency: 'divine' },
+      { id: 'polcirkeln-sapphire-ring', name: "Polcirkeln", value: 0.5, currency: 'divine' }
+    ])
+    expect(book.getUnique('Temporalis', 'Silk Robe')?.value).toBe(12)
+    expect(book.getUnique('Temporalis', 'Runemastered Silk Robe')?.value).toBe(30)
+    expect(book.getUnique('Polcirkeln')?.value).toBe(0.5)
+  })
+})
+
 describe('PriceBook', () => {
   it('finds prices by id or name and searches', () => {
     expect(prices.get('exalted')?.value).toBe(0.004)

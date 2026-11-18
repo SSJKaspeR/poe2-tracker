@@ -113,6 +113,34 @@ export interface GearCheckDTO {
   findings: GearFindingDTO[]
 }
 
+export interface GuideModGapDTO {
+  text: string
+  want: number
+  have: number | null
+}
+
+export interface GuideSlotDTO {
+  slot: string
+  guide: { name: string; rarity: string; base?: string; title?: string } | null
+  player: { name: string; rarity: string; base?: string; title?: string } | null
+  status: 'match' | 'close' | 'missing_unique' | 'different' | 'empty' | 'not_in_guide'
+  missing: GuideModGapDTO[]
+  lower: GuideModGapDTO[]
+  /** What equipping the guide item would change on the player's build (PoB). */
+  impact: Record<string, { before: number; after: number; delta: number }> | null
+  impactScore: number
+  /** poe.ninja price of the guide unique when the player doesn't have it. */
+  uniquePrice: number | null
+}
+
+export interface GuideComparisonDTO {
+  guideName: string
+  importedAt: string
+  guideInfo: { className?: string; ascendancy?: string; level?: number; mainSkill?: string }
+  stats: { key: string; player: number; guide: number }[]
+  slots: GuideSlotDTO[]
+}
+
 export interface PriceDTO {
   id: string
   name: string
@@ -207,6 +235,10 @@ export interface TrackerApi {
   getBuildVersions(): Promise<BuildVersionDTO[]>
   /** Easy wins left on equipped items (empty sockets, open modifiers, old bases…). */
   getGearCheck(): Promise<Result<GearCheckDTO[]>>
+  /** Guide build to compare against (PoB code from a build guide). One per build. */
+  setGuideBuild(code: string, name?: string): Promise<Result<GuideComparisonDTO>>
+  clearGuideBuild(): Promise<void>
+  getGuideComparison(): Promise<Result<GuideComparisonDTO | null>>
   /** Completed runs with economy; `sinceDays` null = all time. */
   getRunsDetailed(sinceDays: number | null): Promise<RunDetailDTO[]>
   setClipboardWatch(on: boolean): Promise<AppStatus>

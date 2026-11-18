@@ -74,6 +74,9 @@ function registerIpc(svc: TrackerService): void {
   ipcMain.handle('build:performance', () => svc.versionPerformance())
   ipcMain.handle('build:versions', () => svc.buildVersions())
   ipcMain.handle('build:gear-check', () => svc.gearCheck())
+  ipcMain.handle('guide:set', (_e, code: string, name?: string) => svc.setGuideBuild(code, name))
+  ipcMain.handle('guide:clear', () => svc.clearGuideBuild())
+  ipcMain.handle('guide:compare', () => svc.guideComparison())
   ipcMain.handle('runs:detailed', (_e, sinceDays: number | null) => svc.runsDetailed(sinceDays))
   ipcMain.handle('clipboard:set-watch', (_e, on: boolean) => {
     svc.setClipboardWatch(on)
