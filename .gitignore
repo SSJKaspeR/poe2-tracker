@@ -4,4 +4,8 @@ out/
 release/
 .env
 *.log
-vendor/pob/
+.pob/
+*.db
+*.db-wal
+*.db-shm
+*.tsbuildinfo

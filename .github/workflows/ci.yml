@@ -1,0 +1,27 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Cache PoB engine
+        uses: actions/cache@v4
+        with:
+          path: .pob
+          key: pob-${{ hashFiles('scripts/setup-pob.mjs') }}
+      - run: npm run setup:pob
+      - run: npm run test:pob
+      - run: npm run build
+      - run: xvfb-run -a npm run test:e2e

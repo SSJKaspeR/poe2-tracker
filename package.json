@@ -1,0 +1,43 @@
+{
+  "name": "poe2-tracker",
+  "version": "0.1.0",
+  "description": "Free, open-source, local-first desktop tracker for Path of Exile 2",
+  "license": "MIT",
+  "author": "SSJKaspeR",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:pob": "vitest run --config vitest.pob.config.ts",
+    "setup:pob": "node scripts/setup-pob.mjs",
+    "test:e2e": "node tests/e2e/app.e2e.mjs"
+  },
+  "dependencies": {
+    "axios": "^1.13.0",
+    "bottleneck": "^2.19.5",
+    "chokidar": "^6.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zustand": "^5.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.3.4",
+    "electron-builder": "^26.0.0",
+    "electron-vite": "^6.0.0",
+    "playwright-core": "^1.65.1",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}
