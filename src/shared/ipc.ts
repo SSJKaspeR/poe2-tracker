@@ -80,6 +80,23 @@ export interface VersionPerformanceDTO {
   profit: ProfitSummaryDTO
 }
 
+export interface RunDetailDTO extends RunDTO {
+  strategyName: string | null
+  versionLabel: string | null
+  invested: number
+  looted: number
+  hasLoot: boolean
+}
+
+export interface BuildVersionDTO {
+  versionId: number
+  label: string | null
+  createdAt: string
+  /** Stats as computed by PoB when the version was saved. */
+  stats: StatMap | null
+  performance: { runs: number; activeMs: number; deaths: number; profit: ProfitSummaryDTO }
+}
+
 export interface PriceDTO {
   id: string
   name: string
@@ -126,6 +143,10 @@ export interface TrackerApi {
   compareItem(itemText: string): Promise<Result<ItemComparisonDTO>>
   equipItem(itemText: string): Promise<Result<BuildSnapshotDTO>>
   getVersionPerformance(): Promise<VersionPerformanceDTO[]>
+  /** Versions of the active build, newest first, with stats and results. */
+  getBuildVersions(): Promise<BuildVersionDTO[]>
+  /** Completed runs with economy; `sinceDays` null = all time. */
+  getRunsDetailed(sinceDays: number | null): Promise<RunDetailDTO[]>
   setClipboardWatch(on: boolean): Promise<AppStatus>
   onItemCompared(listener: (r: Result<ItemComparisonDTO>) => void): () => void
 

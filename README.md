@@ -9,7 +9,11 @@ Free, open-source, local-first desktop tracker for **Path of Exile 2**.
 
 > Work in progress — targeting the Path of Exile 2 1.0 launch (December 11, 2026).
 
-![Screenshot](docs/screenshot.png)
+![Dashboard](docs/screenshot.png)
+
+| Maps | Build |
+|---|---|
+| ![Maps](docs/screenshot-maps.png) | ![Build](docs/screenshot-build.png) |
 
 ## Status
 
@@ -21,6 +25,8 @@ Free, open-source, local-first desktop tracker for **Path of Exile 2**.
 | Build versions (every run linked to the active version) | ✅ |
 | Ctrl+C item comparison (automatic) + "I equipped it" | ✅ |
 | Farming strategies (waystone + tablets…) auto-applied to each map, loot entry, profit/hour | ✅ |
+| Maps tab: history by period, per-run detail, stats by map | ✅ |
+| Build tab: full stat sheet, equipment, every change with its stat diff and its impact on your maps | ✅ |
 | Best next upgrade, trade search for rares, AI explanations | 🚧 |
 | Windows installer | 🚧 |
 

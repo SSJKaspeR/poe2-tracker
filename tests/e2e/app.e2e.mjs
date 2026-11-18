@@ -53,7 +53,7 @@ try {
   step('import build')
   await win.getByPlaceholder('PoB code (eNrt…)').fill(BUILD_CODE)
   await win.getByRole('button', { name: 'Import build' }).click()
-  await win.getByText(/v1 · Imported/).waitFor({ timeout: 15_000 })
+  await win.getByText(/v1 · Imported/).first().waitFor({ timeout: 15_000 })
 
   step('create a strategy with an unpriced waystone, auto-applied')
   const strategies = win.locator('section', { hasText: 'Strategies' })
@@ -98,15 +98,39 @@ try {
 
   step('Ctrl+C an item in game → automatic comparison')
   await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), ITEM)
-  await win.getByText('replaces your').waitFor({ timeout: 15_000 })
+  await win.locator('section', { hasText: 'Compare an item' }).getByText('replaces your').waitFor({ timeout: 15_000 })
   const compare = await win.locator('section', { hasText: 'Compare an item' }).innerText()
   if (!/Fire res[\s\S]*-50%[\s\S]*-10%/.test(compare)) fail(`compare output: ${compare}`)
   await win.screenshot({ path: join(SHOTS, 'screenshot.png') })
 
   step('equip it → new build version')
   await win.getByRole('button', { name: 'I equipped it' }).click()
-  await win.getByText(/v2 · Equipped Gloom Shell/).waitFor({ timeout: 15_000 })
-  await win.getByText('Build versions').waitFor({ timeout: 5_000 })
+  await win.getByText(/v2 · Equipped Gloom Shell/).first().waitFor({ timeout: 15_000 })
+
+  step('Maps tab: history with economy and run detail')
+  await win.getByRole('tab', { name: 'Maps' }).click()
+  const maps = win.locator('section', { hasText: 'Runs' })
+  await maps.getByRole('cell', { name: 'Crypt' }).waitFor({ timeout: 5_000 })
+  const row = await maps.getByRole('row', { name: /Crypt/ }).innerText()
+  if (!row.includes('T15 test') || !row.includes('+4.00 div')) fail(`maps row: ${row}`)
+  await maps.getByRole('cell', { name: 'Crypt' }).click()
+  await maps.getByText('2 × Test loot').waitFor({ timeout: 5_000 })
+  await win.screenshot({ path: join(SHOTS, 'screenshot-maps.png') })
+
+  step('Build tab: full stats and change timeline')
+  await win.getByRole('tab', { name: 'Build' }).click()
+  const timeline = win.locator('section', { hasText: 'Changes & impact' })
+  await timeline.getByText(/v2 · Equipped Gloom Shell/).waitFor({ timeout: 5_000 })
+  const changes = await timeline.innerText()
+  if (!/Life \+95/.test(changes) || !/Fire res \+40%/.test(changes)) fail(`timeline: ${changes}`)
+  if (!/1 map/.test(changes)) fail(`timeline perf: ${changes}`)
+  await win.locator('section', { hasText: 'Equipment' }).getByText('Body Armour').waitFor({ timeout: 5_000 })
+  await win.screenshot({ path: join(SHOTS, 'screenshot-build.png') })
+
+  step('Ctrl+C from another tab brings the Dashboard back')
+  await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), ITEM.replace('+90 to maximum Life', '+10 to maximum Life'))
+  await win.locator('section', { hasText: 'Compare an item' }).getByText('replaces your').waitFor({ timeout: 15_000 })
+  if (!(await win.getByRole('tab', { name: 'Dashboard' }).getAttribute('aria-selected'))?.includes('true')) fail('dashboard not selected')
 
   console.log(process.exitCode ? 'E2E FAILED' : 'E2E OK')
 } catch (err) {

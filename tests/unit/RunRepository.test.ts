@@ -33,6 +33,24 @@ describe('RunRepository', () => {
     expect(repo.statsSince(new Date('2026-11-18T00:00:00Z'))).toEqual({ runs: 1, activeMs: 300_000, deaths: 1 })
   })
 
+  it('lists completed runs with their economy and strategy', () => {
+    const db = new AppDatabase(':memory:')
+    const repo = new RunRepository(db.db)
+    const ended = { ...base, endedAt: new Date('2026-11-18T19:06:00Z'), activeMs: 300_000 }
+    repo.upsert(ended)
+    repo.upsert({ ...base, id: 'open', startedAt: new Date('2026-11-18T19:10:00Z') })
+    const s = db.db.prepare("INSERT INTO strategy_presets (name, items_json, created_at) VALUES ('T15', '[]', 'x')").run()
+    db.db.prepare('UPDATE runs SET strategy_id = ? WHERE id = ?').run(Number(s.lastInsertRowid), 'r1')
+    db.db.prepare("INSERT INTO run_investments (run_id, kind, label, quantity, unit_value) VALUES ('r1', 'waystone', 'W', 1, 0.5)").run()
+    db.db.prepare("INSERT INTO run_loot (run_id, label, quantity, unit_value) VALUES ('r1', 'Divine Orb', 2, 1)").run()
+    db.db.prepare("INSERT INTO run_loot (run_id, label, quantity, unit_value) VALUES ('r1', 'Unknown', 1, NULL)").run()
+
+    const rows = repo.detailed()
+    expect(rows).toHaveLength(1) // the open run is excluded
+    expect(rows[0]).toMatchObject({ id: 'r1', strategyName: 'T15', invested: 0.5, looted: 2, hasLoot: true })
+    expect(repo.detailed({ since: new Date('2026-11-19T00:00:00Z') })).toHaveLength(0)
+  })
+
   it('is idempotent on migrations', () => {
     const db = new AppDatabase(':memory:')
     const v = db.db.prepare('SELECT COUNT(*) AS n FROM schema_version').get() as { n: number }

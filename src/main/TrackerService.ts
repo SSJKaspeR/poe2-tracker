@@ -16,6 +16,7 @@ import type {
   ActiveBuildDTO,
   AppStatus,
   BuildSnapshotDTO,
+  BuildVersionDTO,
   ItemComparisonDTO,
   PresetDTO,
   PresetItemDTO,
@@ -23,6 +24,7 @@ import type {
   ProfitSummaryDTO,
   Result,
   RunDTO,
+  RunDetailDTO,
   RunLinesDTO,
   VersionPerformanceDTO
 } from '../shared/ipc'
@@ -241,6 +243,44 @@ export class TrackerService extends EventEmitter {
       activeMs: p.activeMs,
       deaths: p.deaths,
       profit: toProfitDTO(this.economy.summary({ buildVersionId: p.versionId }))
+    }))
+  }
+
+  buildVersions(): BuildVersionDTO[] {
+    const active = this.activeBuild()
+    if (!active) return []
+    const perf = new Map(this.builds.performanceByVersion(active.buildId).map((p) => [p.versionId, p]))
+    return this.builds.versionsOf(active.buildId).map((v) => {
+      const p = perf.get(v.id)
+      return {
+        versionId: v.id,
+        label: v.label,
+        createdAt: v.createdAt.toISOString(),
+        stats: v.stats,
+        performance: {
+          runs: p?.runs ?? 0,
+          activeMs: p?.activeMs ?? 0,
+          deaths: p?.deaths ?? 0,
+          profit: toProfitDTO(this.economy.summary({ buildVersionId: v.id }))
+        }
+      }
+    })
+  }
+
+  runsDetailed(sinceDays: number | null): RunDetailDTO[] {
+    let since: Date | undefined
+    if (sinceDays !== null) {
+      since = new Date()
+      since.setHours(0, 0, 0, 0)
+      since.setDate(since.getDate() - (sinceDays - 1))
+    }
+    return this.runs.detailed({ since }).map((r) => ({
+      ...toDTO(r, r.endReason),
+      strategyName: r.strategyName,
+      versionLabel: r.versionLabel,
+      invested: r.invested,
+      looted: r.looted,
+      hasLoot: r.hasLoot
     }))
   }
 

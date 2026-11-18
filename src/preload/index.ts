@@ -18,6 +18,8 @@ const api: TrackerApi = {
   compareItem: (itemText) => ipcRenderer.invoke('pob:compare-item', itemText),
   equipItem: (itemText) => ipcRenderer.invoke('pob:equip-item', itemText),
   getVersionPerformance: () => ipcRenderer.invoke('build:performance'),
+  getBuildVersions: () => ipcRenderer.invoke('build:versions'),
+  getRunsDetailed: (sinceDays) => ipcRenderer.invoke('runs:detailed', sinceDays),
   setClipboardWatch: (on) => ipcRenderer.invoke('clipboard:set-watch', on),
   onItemCompared: (listener) => subscribe<Result<ItemComparisonDTO>>('item:compared', listener),
 

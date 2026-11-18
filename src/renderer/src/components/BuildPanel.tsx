@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { BuildSnapshotDTO, ItemComparisonDTO, VersionPerformanceDTO } from '@shared/ipc'
-import { STAT_LABELS, formatDuration, formatStat, isImprovement } from '../format'
-import { useMoney, useTracker } from '../store'
+import type { BuildSnapshotDTO, ItemComparisonDTO } from '@shared/ipc'
+import { STAT_LABELS, formatStat, isImprovement } from '../format'
+import { useTracker } from '../store'
 import { Button, Card } from './Card'
 
 const KEY_STATS = ['CombinedDPS', 'Life', 'EnergyShield', 'Spirit', 'TotalEHP', 'FireResist', 'ColdResist', 'LightningResist', 'ChaosResist']
@@ -238,52 +238,6 @@ export function ItemComparePanel() {
           )}
         </div>
       )}
-    </Card>
-  )
-}
-
-/** Results per build version: did that change actually help? */
-export function VersionHistory() {
-  const status = useTracker((s) => s.status)
-  const money = useMoney()
-  const [rows, setRows] = useState<VersionPerformanceDTO[]>([])
-  const versionId = status?.build?.versionId
-  const todayRuns = status?.today.runs
-
-  useEffect(() => {
-    void window.tracker.getVersionPerformance().then(setRows)
-  }, [versionId, todayRuns])
-
-  if (!status?.build || rows.length < 2) return null
-  return (
-    <Card title="Build versions">
-      <table className="w-full text-sm">
-        <thead className="text-left text-xs text-stone-500">
-          <tr>
-            <th className="pb-2 font-normal">Version</th>
-            <th className="pb-2 text-right font-normal">Maps</th>
-            <th className="pb-2 text-right font-normal">Min / map</th>
-            <th className="pb-2 text-right font-normal">Deaths / map</th>
-            <th className="pb-2 text-right font-normal">Profit / h</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={r.versionId} className="border-t border-stone-800/70">
-              <td className="max-w-40 truncate py-1.5" title={r.label ?? ''}>
-                v{rows.length - i} <span className="text-stone-500">{r.label}</span>
-              </td>
-              <td className="py-1.5 text-right tabular-nums">{r.runs}</td>
-              <td className="py-1.5 text-right tabular-nums">{r.runs ? formatDuration(r.activeMs / r.runs) : '—'}</td>
-              <td className="py-1.5 text-right tabular-nums">{r.runs ? (r.deaths / r.runs).toFixed(2) : '—'}</td>
-              <td className="py-1.5 text-right tabular-nums">
-                {r.profit.runsWithLoot && r.profit.profitPerHour !== null ? money(r.profit.profitPerHour, { sign: true }) : '—'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="mt-2 text-xs text-stone-500">A few sessions per version are needed before comparing.</p>
     </Card>
   )
 }

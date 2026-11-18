@@ -6,6 +6,14 @@ export interface StoredRun extends Run {
   buildVersionId: number | null
 }
 
+export interface RunDetail extends StoredRun {
+  strategyName: string | null
+  versionLabel: string | null
+  invested: number
+  looted: number
+  hasLoot: boolean
+}
+
 interface RunRow {
   id: string
   area_id: string
@@ -80,6 +88,47 @@ export class RunRepository {
       .prepare('SELECT * FROM runs ORDER BY started_at DESC LIMIT ?')
       .all(limit) as unknown as RunRow[]
     return rows.map(fromRow)
+  }
+
+  /** Completed runs with their economy, strategy and build version, newest first. */
+  detailed(opts: { since?: Date; limit?: number } = {}): RunDetail[] {
+    const where = ['r.ended_at IS NOT NULL']
+    const params: (string | number)[] = []
+    if (opts.since) {
+      where.push('r.started_at >= ?')
+      params.push(opts.since.toISOString())
+    }
+    params.push(opts.limit ?? 500)
+    const rows = this.db
+      .prepare(
+        `SELECT r.*,
+                s.name AS strategy_name,
+                v.label AS version_label,
+                (SELECT COALESCE(SUM(quantity * COALESCE(unit_value, 0)), 0) FROM run_investments i WHERE i.run_id = r.id) AS invested,
+                (SELECT COALESCE(SUM(quantity * COALESCE(unit_value, 0)), 0) FROM run_loot l WHERE l.run_id = r.id) AS looted,
+                (SELECT COUNT(*) FROM run_loot l WHERE l.run_id = r.id) AS loot_lines
+         FROM runs r
+         LEFT JOIN strategy_presets s ON s.id = r.strategy_id
+         LEFT JOIN build_versions v ON v.id = r.build_version_id
+         WHERE ${where.join(' AND ')}
+         ORDER BY r.started_at DESC
+         LIMIT ?`
+      )
+      .all(...params) as unknown as (RunRow & {
+      strategy_name: string | null
+      version_label: string | null
+      invested: number
+      looted: number
+      loot_lines: number
+    })[]
+    return rows.map((r) => ({
+      ...fromRow(r),
+      strategyName: r.strategy_name,
+      versionLabel: r.version_label,
+      invested: r.invested,
+      looted: r.looted,
+      hasLoot: r.loot_lines > 0
+    }))
   }
 
   /** Completed runs and total active time since `since`. */

@@ -35,6 +35,37 @@ export const STAT_LABELS: Record<string, string> = {
   ChaosMaximumHitTaken: 'Max chaos hit'
 }
 
+/** Extra labels used only on the Build tab (full stat sheet). */
+export const EXTRA_STAT_LABELS: Record<string, string> = {
+  AverageHit: 'Average hit',
+  Speed: 'Attacks / casts per second',
+  CritChance: 'Crit chance',
+  CritMultiplier: 'Crit multiplier',
+  HitChance: 'Hit chance',
+  AreaOfEffectRadiusMetres: 'AoE radius (m)',
+  LifeUnreserved: 'Life (unreserved)',
+  ManaUnreserved: 'Mana (unreserved)',
+  SpiritUnreserved: 'Spirit (unreserved)',
+  Ward: 'Ward',
+  FireResistOverCap: 'Fire overcap',
+  ColdResistOverCap: 'Cold overcap',
+  LightningResistOverCap: 'Lightning overcap',
+  ChaosResistOverCap: 'Chaos overcap',
+  EffectiveBlockChance: 'Block chance',
+  EffectiveSpellBlockChance: 'Spell block chance',
+  LifeRegenRecovery: 'Life regen / s',
+  LifeLeechGainRate: 'Life leech / s',
+  EnergyShieldRegenRecovery: 'ES regen / s',
+  ManaRegenRecovery: 'Mana regen / s',
+  Str: 'Strength',
+  Dex: 'Dexterity',
+  Int: 'Intelligence'
+}
+
+export function statLabel(key: string): string {
+  return STAT_LABELS[key] ?? EXTRA_STAT_LABELS[key] ?? key
+}
+
 /** Stats where a lower value is better. */
 const LOWER_IS_BETTER = new Set<string>([])
 
@@ -44,7 +75,9 @@ export function isImprovement(key: string, delta: number): boolean {
 
 export function formatStat(key: string, value: number): string {
   if (key === 'EffectiveMovementSpeedMod') return `${Math.round(value * 100)}%`
-  if (key.endsWith('Resist')) return `${Math.round(value)}%`
+  if (key.endsWith('Chance')) return `${value.toFixed(value < 10 ? 1 : 0)}%`
+  if (key.endsWith('Resist') || key.endsWith('OverCap')) return `${Math.round(value)}%`
+  if (key === 'CritMultiplier') return `${Math.round(value * 100)}%`
   if (Math.abs(value) >= 1000) return Math.round(value).toLocaleString()
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
