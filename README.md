@@ -25,6 +25,7 @@ Free, open-source, local-first desktop tracker for **Path of Exile 2**.
 | Build versions (every run linked to the active version) | ✅ |
 | Ctrl+C item comparison (automatic) + "I equipped it" | ✅ |
 | Farming strategies (waystone + tablets…) auto-applied to each map, loot entry, profit/hour | ✅ |
+| Sessions with a farming mode: rush N maps, pinnacle boss attempts (kill/fail), hideout stash/crafting — real profit/hour over the whole session | ✅ |
 | Maps tab: history by period, per-run detail, stats by map | ✅ |
 | Build tab: full stat sheet, equipment, every change with its stat diff and its impact on your maps | ✅ |
 | Best next upgrade, trade search for rares, AI explanations | 🚧 |

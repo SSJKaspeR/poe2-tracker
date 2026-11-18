@@ -34,6 +34,14 @@ const api: TrackerApi = {
   removeLine: (runId, kind, lineId) => ipcRenderer.invoke('runs:remove-line', runId, kind, lineId),
   refreshPrices: () => ipcRenderer.invoke('prices:refresh'),
 
+  startSession: (s) => ipcRenderer.invoke('session:start', s),
+  endSession: () => ipcRenderer.invoke('session:end'),
+  getSessions: () => ipcRenderer.invoke('session:list'),
+  setRunOutcome: (runId, outcome) => ipcRenderer.invoke('runs:set-outcome', runId, outcome),
+  getSessionLines: (id) => ipcRenderer.invoke('session:lines', id),
+  addSessionLine: (id, line) => ipcRenderer.invoke('session:add-line', id, line),
+  removeSessionLine: (id, lineId) => ipcRenderer.invoke('session:remove-line', id, lineId),
+
   onStatusChanged: (listener) => subscribe<AppStatus>('status:changed', listener)
 }
 

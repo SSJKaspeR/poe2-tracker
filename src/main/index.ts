@@ -93,6 +93,19 @@ function registerIpc(svc: TrackerService): void {
     return svc.status()
   })
   ipcMain.handle('runs:lines', (_e, runId: string) => svc.runLines(runId))
+  ipcMain.handle('runs:set-outcome', (_e, runId: string, outcome: 'kill' | 'fail' | null) => svc.setRunOutcome(runId, outcome))
+  ipcMain.handle('session:start', (_e, s) => {
+    svc.startSession(s)
+    return svc.status()
+  })
+  ipcMain.handle('session:end', () => {
+    svc.endSession()
+    return svc.status()
+  })
+  ipcMain.handle('session:list', () => svc.sessionHistory())
+  ipcMain.handle('session:lines', (_e, id: number) => svc.sessionLines(id))
+  ipcMain.handle('session:add-line', (_e, id: number, line) => svc.addSessionLine(id, line))
+  ipcMain.handle('session:remove-line', (_e, id: number, lineId: number) => svc.removeSessionLine(id, lineId))
   ipcMain.handle('runs:apply-preset', (_e, runId: string, presetId: number) => svc.applyPresetToRun(runId, presetId))
   ipcMain.handle('runs:add-loot', (_e, runId: string, item) => svc.addLoot(runId, item))
   ipcMain.handle('runs:remove-line', (_e, runId: string, kind: 'loot' | 'investment', lineId: number) =>

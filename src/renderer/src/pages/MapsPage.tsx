@@ -98,7 +98,16 @@ export function MapsPage() {
                       onClick={() => setOpenId(open ? null : r.id)}
                     >
                       <td className="py-1.5 tabular-nums text-stone-400">{formatWhen(r.startedAt)}</td>
-                      <td className="py-1.5 text-stone-200">{r.areaName ?? r.areaId}</td>
+                      <td className="py-1.5 text-stone-200">
+                        {r.areaName ?? r.areaId}
+                        {r.kind === 'boss' && (
+                          <span
+                            className={`ml-2 text-xs ${r.outcome === 'kill' ? 'text-emerald-400' : r.outcome === 'fail' ? 'text-red-400' : 'text-stone-500'}`}
+                          >
+                            {r.outcome === 'kill' ? 'boss killed' : r.outcome === 'fail' ? 'boss failed' : 'boss'}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-1.5 text-right tabular-nums text-stone-400">{r.areaLevel}</td>
                       <td className="py-1.5 text-right tabular-nums">{formatDuration(r.activeMs)}</td>
                       <td className={`py-1.5 text-right tabular-nums ${r.deaths ? 'text-red-400' : 'text-stone-500'}`}>{r.deaths}</td>

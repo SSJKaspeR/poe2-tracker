@@ -2,14 +2,17 @@ import { useEffect, useState } from 'react'
 import { BuildPanel, ItemComparePanel } from './components/BuildPanel'
 import { Button } from './components/Card'
 import { CurrentRun, RecentRuns, RunEconomy, StatusBar } from './components/RunsPanel'
+import { SessionBar } from './components/SessionBar'
 import { StrategyPanel } from './components/StrategyPanel'
 import { BuildPage } from './pages/BuildPage'
 import { MapsPage } from './pages/MapsPage'
+import { SessionsPage } from './pages/SessionsPage'
 import { useTracker } from './store'
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'maps', label: 'Maps' },
+  { id: 'sessions', label: 'Sessions' },
   { id: 'build', label: 'Build' }
 ] as const
 type Tab = (typeof TABS)[number]['id']
@@ -57,6 +60,7 @@ export function App() {
         <main className="flex-1 overflow-auto p-6">
           <div className={tab === 'dashboard' ? 'grid grid-cols-[1fr_400px] gap-4' : 'hidden'}>
             <div className="space-y-4">
+              <SessionBar />
               <StatusBar />
               <CurrentRun />
               <RunEconomy />
@@ -70,6 +74,9 @@ export function App() {
           </div>
           <div className={tab === 'maps' ? '' : 'hidden'}>
             <MapsPage />
+          </div>
+          <div className={tab === 'sessions' ? '' : 'hidden'}>
+            <SessionsPage />
           </div>
           <div className={tab === 'build' ? '' : 'hidden'}>
             <BuildPage />

@@ -94,5 +94,37 @@ export const MIGRATIONS: Migration[] = [
       );
       ALTER TABLE runs ADD COLUMN strategy_id INTEGER REFERENCES strategy_presets(id);
     `
+  },
+  {
+    version: 3,
+    sql: `
+      -- A play session with a farming mode and an objective.
+      CREATE TABLE sessions (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        mode            TEXT NOT NULL CHECK (mode IN ('maps', 'boss', 'hideout')),
+        target_count    INTEGER,          -- maps: number of maps; boss: number of attempts (optional)
+        boss_name       TEXT,             -- boss mode
+        activity        TEXT,             -- hideout mode: 'stash' | 'craft'
+        started_at      TEXT NOT NULL,
+        ended_at        TEXT
+      );
+      CREATE INDEX idx_sessions_started ON sessions(started_at);
+
+      ALTER TABLE runs ADD COLUMN session_id INTEGER REFERENCES sessions(id);
+      ALTER TABLE runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'map';   -- 'map' | 'boss'
+      ALTER TABLE runs ADD COLUMN outcome TEXT;                        -- boss: 'kill' | 'fail'
+
+      -- Currency spent / gained outside maps (crafting, selling…), per session.
+      CREATE TABLE session_lines (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id  INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        direction   TEXT NOT NULL CHECK (direction IN ('spent', 'gained')),
+        item_id     TEXT,
+        label       TEXT NOT NULL,
+        quantity    REAL NOT NULL DEFAULT 1,
+        unit_value  REAL,
+        currency    TEXT
+      );
+    `
   }
 ]

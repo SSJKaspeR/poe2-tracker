@@ -120,3 +120,30 @@ describe('RunTracker', () => {
     expect(run?.activeMs).toBe(4 * 60_000)
   })
 })
+
+describe('RunTracker in boss mode', () => {
+  it('tracks unknown arenas as runs and resumes them like maps', () => {
+    n = 0
+    const t = new RunTracker({ idFactory: ids, trackOtherAreas: true })
+    const events = feed(t, [
+      gen(0, 0, 'HideoutBattleground', 1),
+      gen(1, 0, 'PinnacleArbiterArena', 42, 82),
+      gen(3, 0, 'HideoutBattleground', 1),
+      gen(4, 0, 'PinnacleArbiterArena', 42, 82),
+      gen(6, 0, 'PinnacleArbiterArena', 43, 82)
+    ])
+    expect(events.map((e) => e.type)).toEqual(['run_started', 'run_paused', 'run_resumed', 'run_completed', 'run_started'])
+    const done = events.find((e) => e.type === 'run_completed')
+    if (done?.type === 'run_completed') expect(done.run.activeMs).toBe(4 * 60_000)
+  })
+
+  it('can be switched on and off', () => {
+    n = 0
+    const t = new RunTracker({ idFactory: ids })
+    feed(t, [gen(0, 0, 'PinnacleArbiterArena', 42)])
+    expect(t.getState()).toBe('idle')
+    t.setTrackOtherAreas(true)
+    feed(t, [gen(1, 0, 'PinnacleArbiterArena', 43)])
+    expect(t.getState()).toBe('running')
+  })
+})

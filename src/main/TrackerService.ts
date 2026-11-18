@@ -12,6 +12,7 @@ import { PobBridge, type PobBridgeOptions } from '../core/pob/PobBridge'
 import { PoeNinjaClient } from '../core/pricing/PoeNinjaClient'
 import { EXCHANGE_TYPES, PriceBook, STASH_TYPES } from '../core/pricing/PriceBook'
 import { RunTracker, type Run } from '../core/runs/RunTracker'
+import { SessionRepository, type SessionSummary } from '../core/sessions/SessionRepository'
 import type {
   ActiveBuildDTO,
   AppStatus,
@@ -26,6 +27,9 @@ import type {
   RunDTO,
   RunDetailDTO,
   RunLinesDTO,
+  SessionLineDTO,
+  SessionSummaryDTO,
+  StartSessionDTO,
   VersionPerformanceDTO
 } from '../shared/ipc'
 
@@ -40,6 +44,7 @@ export class TrackerService extends EventEmitter {
   private readonly runs: RunRepository
   private readonly builds: BuildRepository
   private readonly economy: Economy
+  private readonly sessions: SessionRepository
   private readonly tracker = new RunTracker()
   private readonly pricing: PoeNinjaClient
   private readonly pob: PobBridge | null
@@ -64,6 +69,8 @@ export class TrackerService extends EventEmitter {
     this.runs = new RunRepository(this.database.db)
     this.builds = new BuildRepository(this.database.db)
     this.economy = new Economy(this.database.db, () => this.priceBook)
+    this.sessions = new SessionRepository(this.database.db, () => this.priceBook)
+    this.tracker.setTrackOtherAreas(this.sessions.active()?.mode === 'boss')
     this.pricing = opts.pricing ?? new PoeNinjaClient({ cache: new SqlitePriceCache(this.database.db) })
     this.pob = opts.pob ? new PobBridge({ ...opts.pob, onLog: (l) => opts.log?.(`[pob] ${l}`) }) : null
     if (!opts.pob) this.pobError = 'Path of Building engine not installed (run `npm run setup:pob`)'
@@ -71,8 +78,11 @@ export class TrackerService extends EventEmitter {
     this.tracker.on((e) => {
       if (e.type === 'run_started') {
         this.runs.upsert(e.run, { buildVersionId: this.activeVersionId() })
+        const session = this.sessions.active()
+        if (session) this.sessions.attachRun(e.run.id, session.id, session.mode === 'boss' ? 'boss' : 'map')
+        // The map strategy (waystone + tablets) doesn't apply to boss attempts.
         const presetId = this.activePresetId()
-        if (presetId !== null && this.getSetting('autoApplyPreset') === '1') {
+        if (presetId !== null && session?.mode !== 'boss' && this.getSetting('autoApplyPreset') === '1') {
           try {
             this.economy.applyPreset(e.run.id, presetId)
           } catch (err) {
@@ -160,7 +170,8 @@ export class TrackerService extends EventEmitter {
       },
       activePresetId: this.activePresetId(),
       autoApplyPreset: this.getSetting('autoApplyPreset') === '1',
-      clipboardWatch: this.getSetting('clipboardWatch') !== '0'
+      clipboardWatch: this.getSetting('clipboardWatch') !== '0',
+      session: this.activeSessionSummary()
     }
   }
 
@@ -365,7 +376,86 @@ export class TrackerService extends EventEmitter {
       quantity: x.quantity,
       unitValue: x.unitValue
     })
-    return { runId, strategyId: l.strategyId, investments: l.investments.map(map), loot: l.loot.map(map) }
+    const meta = this.database.db.prepare('SELECT kind, outcome FROM runs WHERE id = ?').get(runId) as
+      | { kind: 'map' | 'boss'; outcome: 'kill' | 'fail' | null }
+      | undefined
+    return {
+      runId,
+      kind: meta?.kind ?? 'map',
+      outcome: meta?.outcome ?? null,
+      strategyId: l.strategyId,
+      investments: l.investments.map(map),
+      loot: l.loot.map(map)
+    }
+  }
+
+  // ── Sessions ──────────────────────────────────────────────────────────────
+
+  startSession(s: StartSessionDTO): void {
+    const target = s.targetCount && s.targetCount > 0 ? Math.floor(s.targetCount) : null
+    this.sessions.start({
+      mode: s.mode,
+      targetCount: s.mode === 'hideout' ? null : target,
+      bossName: s.mode === 'boss' ? s.bossName?.trim() || null : null,
+      activity: s.mode === 'hideout' ? (s.activity ?? 'stash') : null
+    })
+    // Boss arenas are not "Map…" areas: track every non-safe area as an attempt.
+    this.tracker.setTrackOtherAreas(s.mode === 'boss')
+    const current = this.tracker.getCurrentRun()
+    const session = this.sessions.active()
+    if (current && session) this.sessions.attachRun(current.id, session.id, session.mode === 'boss' ? 'boss' : 'map')
+    this.emitStatus()
+  }
+
+  endSession(): void {
+    this.sessions.endActive()
+    this.tracker.setTrackOtherAreas(false)
+    this.emitStatus()
+  }
+
+  sessionHistory(): SessionSummaryDTO[] {
+    return this.sessions
+      .list(100)
+      .map((s) => this.sessions.summary(s.id))
+      .filter((s): s is SessionSummary => s !== null)
+      .map(toSessionDTO)
+  }
+
+  setRunOutcome(runId: string, outcome: 'kill' | 'fail' | null): RunLinesDTO {
+    this.sessions.setOutcome(runId, outcome)
+    this.emitStatus()
+    return this.runLines(runId)
+  }
+
+  sessionLines(sessionId: number): SessionLineDTO[] {
+    return this.sessions.lines(sessionId).map((l) => ({
+      id: l.id,
+      direction: l.direction,
+      label: l.label,
+      quantity: l.quantity,
+      unitValue: l.unitValue
+    }))
+  }
+
+  addSessionLine(
+    sessionId: number,
+    line: { direction: 'spent' | 'gained'; label: string; itemId?: string; quantity: number; manualValue?: number }
+  ): SessionLineDTO[] {
+    this.sessions.addLine(sessionId, line)
+    this.emitStatus()
+    return this.sessionLines(sessionId)
+  }
+
+  removeSessionLine(sessionId: number, lineId: number): SessionLineDTO[] {
+    this.sessions.removeLine(lineId)
+    this.emitStatus()
+    return this.sessionLines(sessionId)
+  }
+
+  private activeSessionSummary(): SessionSummaryDTO | null {
+    const a = this.sessions.active()
+    const sum = a ? this.sessions.summary(a.id) : null
+    return sum ? toSessionDTO(sum) : null
   }
 
   applyPresetToRun(runId: string, presetId: number): RunLinesDTO {
@@ -473,7 +563,22 @@ function toDTO(r: Run | StoredRun, endReason: string | null): RunDTO {
     activeMs: r.activeMs,
     deaths: r.deaths,
     reentries: r.reentries,
-    endReason
+    endReason,
+    ...('kind' in r ? { kind: r.kind, outcome: r.outcome } : {})
+  }
+}
+
+function toSessionDTO(s: SessionSummary): SessionSummaryDTO {
+  const { session, ...rest } = s
+  return {
+    id: session.id,
+    mode: session.mode,
+    targetCount: session.targetCount,
+    bossName: session.bossName,
+    activity: session.activity,
+    startedAt: session.startedAt.toISOString(),
+    endedAt: session.endedAt ? session.endedAt.toISOString() : null,
+    ...rest
   }
 }
 

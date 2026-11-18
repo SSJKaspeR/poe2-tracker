@@ -115,8 +115,34 @@ export function RunEconomy() {
   const looted = sum(lines?.loot)
   const hasLoot = (lines?.loot.length ?? 0) > 0
 
+  const isBoss = lines?.kind === 'boss'
+  const noun = isBoss ? 'attempt' : 'map'
   return (
-    <Card title={isCurrent ? 'This map' : `Last map — ${run.areaName ?? run.areaId}`}>
+    <Card title={isCurrent ? `This ${noun}` : `Last ${noun} — ${run.areaName ?? run.areaId}`}>
+      {isBoss && (
+        <div className="mb-3 flex items-center gap-2 text-sm">
+          <span className="text-stone-500">Boss</span>
+          {(['kill', 'fail'] as const).map((o) => (
+            <button
+              key={o}
+              type="button"
+              aria-pressed={lines?.outcome === o}
+              className={`rounded-md border px-3 py-1 ${
+                lines?.outcome === o
+                  ? o === 'kill'
+                    ? 'border-emerald-600 bg-emerald-950/50 text-emerald-300'
+                    : 'border-red-700 bg-red-950/40 text-red-300'
+                  : 'border-stone-700 text-stone-300 hover:bg-stone-800'
+              }`}
+              onClick={() =>
+                void window.tracker.setRunOutcome(run.id, lines?.outcome === o ? null : o).then(setLines)
+              }
+            >
+              {o === 'kill' ? 'Killed' : 'Failed'}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="mb-3 grid grid-cols-3 gap-3 text-sm">
         <Money label="Invested" value={money(invested)} />
         <Money label="Loot" value={hasLoot ? money(looted) : '—'} />

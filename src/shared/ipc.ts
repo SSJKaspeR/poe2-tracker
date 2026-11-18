@@ -12,6 +12,8 @@ export interface RunDTO {
   deaths: number
   reentries: number
   endReason: string | null
+  kind?: 'map' | 'boss'
+  outcome?: 'kill' | 'fail' | null
 }
 
 export type TrackerState = 'idle' | 'running' | 'pending_end'
@@ -50,6 +52,7 @@ export interface AppStatus {
   activePresetId: number | null
   autoApplyPreset: boolean
   clipboardWatch: boolean
+  session: SessionSummaryDTO | null
 }
 
 export type StatMap = Record<string, number>
@@ -124,9 +127,53 @@ export interface PresetDTO {
 
 export interface RunLinesDTO {
   runId: string
+  kind: 'map' | 'boss'
+  outcome: 'kill' | 'fail' | null
   strategyId: number | null
   investments: { id: number; label: string; quantity: number; unitValue: number | null }[]
   loot: { id: number; label: string; quantity: number; unitValue: number | null }[]
+}
+
+export type SessionMode = 'maps' | 'boss' | 'hideout'
+
+export interface StartSessionDTO {
+  mode: SessionMode
+  targetCount?: number | null
+  bossName?: string | null
+  activity?: 'stash' | 'craft' | null
+}
+
+export interface SessionSummaryDTO {
+  id: number
+  mode: SessionMode
+  targetCount: number | null
+  bossName: string | null
+  activity: 'stash' | 'craft' | null
+  startedAt: string
+  endedAt: string | null
+  durationMs: number
+  runs: number
+  completedRuns: number
+  runActiveMs: number
+  deaths: number
+  kills: number
+  fails: number
+  invested: number
+  looted: number
+  spent: number
+  gained: number
+  profit: number
+  profitPerHour: number | null
+  hasEconomy: boolean
+  objectiveReached: boolean
+}
+
+export interface SessionLineDTO {
+  id: number
+  direction: 'spent' | 'gained'
+  label: string
+  quantity: number
+  unitValue: number | null
 }
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string }
@@ -161,6 +208,18 @@ export interface TrackerApi {
   addLoot(runId: string, item: { label: string; itemId?: string; quantity: number; manualValue?: number }): Promise<RunLinesDTO>
   removeLine(runId: string, kind: 'loot' | 'investment', lineId: number): Promise<RunLinesDTO>
   refreshPrices(): Promise<AppStatus>
+
+  // Sessions
+  startSession(s: StartSessionDTO): Promise<AppStatus>
+  endSession(): Promise<AppStatus>
+  getSessions(): Promise<SessionSummaryDTO[]>
+  setRunOutcome(runId: string, outcome: 'kill' | 'fail' | null): Promise<RunLinesDTO>
+  getSessionLines(sessionId: number): Promise<SessionLineDTO[]>
+  addSessionLine(
+    sessionId: number,
+    line: { direction: 'spent' | 'gained'; label: string; itemId?: string; quantity: number; manualValue?: number }
+  ): Promise<SessionLineDTO[]>
+  removeSessionLine(sessionId: number, lineId: number): Promise<SessionLineDTO[]>
 
   onStatusChanged(listener: (status: AppStatus) => void): () => void
 }

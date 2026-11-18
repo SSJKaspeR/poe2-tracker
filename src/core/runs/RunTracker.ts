@@ -43,6 +43,11 @@ export type RunTrackerEvent =
 export interface RunTrackerOptions {
   /** Close a paused run after this long outside the map. Default 10 min. */
   pendingTimeoutMs?: number
+  /**
+   * Also track non-map, non-safe areas as runs (pinnacle boss arenas, whose area ids
+   * are not known yet). Used in Boss sessions. Default false.
+   */
+  trackOtherAreas?: boolean
   /** Only count deaths of these characters (case-insensitive). Empty = count every death. */
   characterNames?: string[]
   idFactory?: () => string
@@ -61,6 +66,7 @@ export class RunTracker {
   private lastIp: string | null = null
   /** Set when an area was just generated, so the next "You have entered" can be attributed. */
   private awaitingNameFor: { areaId: string; seed: number } | null = null
+  private trackOtherAreas: boolean
   private readonly pendingTimeoutMs: number
   private readonly characterNames: Set<string>
   private readonly idFactory: () => string
@@ -68,6 +74,7 @@ export class RunTracker {
 
   constructor(opts: RunTrackerOptions = {}) {
     this.pendingTimeoutMs = opts.pendingTimeoutMs ?? 10 * 60 * 1000
+    this.trackOtherAreas = opts.trackOtherAreas ?? false
     this.characterNames = new Set((opts.characterNames ?? []).map((n) => n.toLowerCase()))
     this.idFactory = opts.idFactory ?? defaultId
   }
@@ -88,6 +95,10 @@ export class RunTracker {
   /** Start of the segment currently being played inside the map (null when paused or idle). */
   getSegmentStart(): Date | null {
     return this.state === 'running' ? this.segmentStart : null
+  }
+
+  setTrackOtherAreas(on: boolean): void {
+    this.trackOtherAreas = on
   }
 
   setCharacterNames(names: string[]): void {
@@ -153,7 +164,7 @@ export class RunTracker {
     const kind = classifyArea(areaId)
     this.awaitingNameFor = { areaId, seed }
 
-    if (kind === 'map') {
+    if (kind === 'map' || (kind === 'other' && this.trackOtherAreas)) {
       if (this.current && this.current.areaId === areaId && this.current.seed === seed) {
         // Back into the same instance (portal).
         if (this.state === 'pending_end') {

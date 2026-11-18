@@ -4,6 +4,8 @@ import type { Run } from '../runs/RunTracker'
 export interface StoredRun extends Run {
   endReason: string | null
   buildVersionId: number | null
+  kind: 'map' | 'boss'
+  outcome: 'kill' | 'fail' | null
 }
 
 export interface RunDetail extends StoredRun {
@@ -28,6 +30,8 @@ interface RunRow {
   reentries: number
   end_reason: string | null
   build_version_id: number | null
+  kind?: 'map' | 'boss'
+  outcome?: 'kill' | 'fail' | null
 }
 
 function fromRow(r: RunRow): StoredRun {
@@ -44,7 +48,9 @@ function fromRow(r: RunRow): StoredRun {
     deaths: r.deaths,
     reentries: r.reentries,
     endReason: r.end_reason,
-    buildVersionId: r.build_version_id
+    buildVersionId: r.build_version_id,
+    kind: r.kind ?? 'map',
+    outcome: r.outcome ?? null
   }
 }
 

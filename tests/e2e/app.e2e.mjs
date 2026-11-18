@@ -67,6 +67,13 @@ try {
   await strategies.getByText('T15 test').waitFor()
   await strategies.getByLabel(/Apply the selected strategy/).check()
 
+  step('start a "rush maps" session (objective: 1 map)')
+  const sessionCard = win.locator('section', { hasText: 'Session' }).first()
+  await sessionCard.getByRole('button', { name: 'Rush maps' }).click()
+  await sessionCard.getByLabel('Number of maps').fill('1')
+  await sessionCard.getByRole('button', { name: 'Start session' }).click()
+  await win.getByText('Session · Rush maps').waitFor({ timeout: 5_000 })
+
   step('play two maps')
   const t0 = new Date(Date.now() - 10 * 60_000)
   const at = (min) => new Date(t0.getTime() + min * 60_000)
@@ -95,6 +102,8 @@ try {
   if (!profit.includes('+4.00 div')) fail(`profit today: ${profit}`)
   const nextInvested = await win.locator('section', { hasText: 'This map' }).getByText('Invested').locator('..').innerText()
   if (!nextInvested.includes('2.00 div')) fail(`strategy not auto-applied to the 2nd map: ${nextInvested}`)
+
+  await win.getByText('Objective reached — 1 maps done.').waitFor({ timeout: 5_000 })
 
   step('Ctrl+C an item in game → automatic comparison')
   await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), ITEM)
@@ -131,6 +140,55 @@ try {
   await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), ITEM.replace('+90 to maximum Life', '+10 to maximum Life'))
   await win.locator('section', { hasText: 'Compare an item' }).getByText('replaces your').waitFor({ timeout: 15_000 })
   if (!(await win.getByRole('tab', { name: 'Dashboard' }).getAttribute('aria-selected'))?.includes('true')) fail('dashboard not selected')
+
+  step('boss session: arena tracked as an attempt, marked as killed')
+  await win.getByRole('button', { name: 'End session' }).click()
+  await win.getByRole('button', { name: 'Pinnacle boss' }).click()
+  await win.getByLabel('Boss').fill('Arbiter of Ash')
+  await win.getByLabel('Number of attempts').fill('3')
+  await win.getByRole('button', { name: 'Start session' }).click()
+  await win.getByText('Session · Boss — Arbiter of Ash').waitFor({ timeout: 5_000 })
+  appendFileSync(
+    logPath,
+    line(at(8), 'Generating level 65 area "HideoutBattleground" with seed 1') +
+      line(at(9), 'Generating level 82 area "PinnacleArbiterArena" with seed 900') +
+      line(at(9), ': You have entered The Burning Monolith.')
+  )
+  const attempt = win.locator('section', { hasText: 'This attempt' })
+  await attempt.getByRole('button', { name: 'Killed' }).click()
+  const invested = await attempt.getByText('Invested').locator('..').innerText()
+  if (invested.includes('2.00 div')) fail('map strategy was applied to a boss attempt')
+  await win.locator('section', { hasText: 'Session · Boss' }).getByText('100%').waitFor({ timeout: 5_000 })
+  const bossBar = await win.locator('section', { hasText: 'Session · Boss' }).innerText()
+  if (!/Attempts\s*1\s*\/\s*3/.test(bossBar)) fail(`boss session: ${bossBar}`)
+  await win.screenshot({ path: join(SHOTS, 'screenshot-boss.png') })
+
+  step('hideout crafting session: spent / gained')
+  await win.getByRole('button', { name: 'End session' }).click()
+  await win.getByRole('button', { name: 'Hideout' }).click()
+  await win.getByRole('radio', { name: 'Crafting' }).click()
+  await win.getByRole('button', { name: 'Start session' }).click()
+  const craft = win.locator('section', { hasText: 'Session · Hideout — crafting' })
+  await craft.waitFor({ timeout: 5_000 })
+  const [spentPicker, gainedPicker] = [craft.getByPlaceholder(/^Item/).nth(0), craft.getByPlaceholder(/^Item/).nth(1)]
+  await spentPicker.fill('Test mats')
+  await craft.getByLabel('Value in divine').nth(0).fill('1')
+  await craft.getByRole('button', { name: 'Add', exact: true }).nth(0).click()
+  await gainedPicker.fill('Test sale')
+  await craft.getByLabel('Value in divine').nth(1).fill('3')
+  await craft.getByRole('button', { name: 'Add', exact: true }).nth(1).click()
+  await craft.getByText('+2.00 div').first().waitFor({ timeout: 5_000 })
+  await win.screenshot({ path: join(SHOTS, 'screenshot-craft.png') })
+
+  step('Sessions tab lists the three sessions')
+  await win.getByRole('tab', { name: 'Sessions' }).click()
+  const history = win.locator('section', { hasText: 'Sessions' }).last()
+  await history.getByText('Hideout — crafting').waitFor({ timeout: 5_000 })
+  const rows = await history.getByRole('row').count()
+  if (rows !== 4) fail(`sessions rows: ${rows - 1}`)
+  const text = await history.innerText()
+  if (!text.includes('1 kill / 1') || !text.includes('Rush maps')) fail(`sessions: ${text}`)
+  await win.screenshot({ path: join(SHOTS, 'screenshot-sessions.png') })
 
   console.log(process.exitCode ? 'E2E FAILED' : 'E2E OK')
 } catch (err) {
