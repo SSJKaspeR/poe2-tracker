@@ -3,6 +3,7 @@ import { delimiter, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import type { ItemAudit } from '../build/gearCheck'
 import type { DetailedItem } from '../build/targetCompare'
+import type { SkillGroup, TreeDetail } from '../build/treeGemsCompare'
 
 /**
  * Runs the Path of Building (PoE 2) engine headless in a LuaJIT child process
@@ -190,6 +191,14 @@ export class PobBridge {
   /** Every equipped item with raw text and resolved mod lines. */
   itemsDetail(): Promise<{ items: DetailedItem[] }> {
     return this.request('items_detail')
+  }
+
+  treeDetail(): Promise<TreeDetail> {
+    return this.request('tree_detail')
+  }
+
+  skillsDetail(): Promise<{ groups: SkillGroup[] }> {
+    return this.request('skills_detail')
   }
 
   compareNode(nodeId: number): Promise<{ node: { id: number; name: string } } & Omit<ItemComparison, 'slot' | 'item'>> {

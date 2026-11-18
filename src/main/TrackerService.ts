@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
 import { checkGear } from '../core/build/gearCheck'
 import { compareGear, impactScore, type DetailedItem } from '../core/build/targetCompare'
+import { compareSkills, compareTree, type SkillGroup, type TreeDetail } from '../core/build/treeGemsCompare'
 import { BuildRepository } from '../core/db/BuildRepository'
 import { AppDatabase } from '../core/db/Database'
 import { RunRepository, type StoredRun } from '../core/db/RunRepository'
@@ -306,13 +307,17 @@ export class TrackerService extends EventEmitter {
         try {
           const snap = await this.pob!.loadCode(code.trim(), 'Guide')
           const { items } = await this.pob!.itemsDetail()
+          const tree = await this.pob!.treeDetail()
+          const { groups } = await this.pob!.skillsDetail()
           const guide: StoredGuide = {
             code: code.trim(),
             name: name?.trim() || defaultBuildName(snap),
             importedAt: new Date().toISOString(),
             info: snap.info,
             stats: snap.stats,
-            items
+            items,
+            tree,
+            skills: groups
           }
           this.setSetting(`guide:${active.buildId}`, JSON.stringify(guide))
         } finally {
@@ -370,7 +375,38 @@ export class TrackerService extends EventEmitter {
         const stats = keys
           .filter((k) => guide.stats[k] !== undefined && playerSnap.stats[k] !== undefined)
           .map((k) => ({ key: k, player: playerSnap.stats[k]!, guide: guide.stats[k]! }))
-        return { guideName: guide.name, importedAt: guide.importedAt, guideInfo: guide.info, stats, slots }
+
+        let tree: GuideComparisonDTO['tree'] = null
+        if (guide.tree) {
+          const t = compareTree(guide.tree, await this.pob!.treeDetail())
+          // PoB: what each missing keystone / notable / ascendancy node would give
+          // (path ignored), to show which ones matter most. Capped to keep it fast.
+          const rate = async (nodes: TreeDetail['nodes']) => {
+            const out = []
+            for (const node of nodes.slice(0, 30)) {
+              let impact = null
+              try {
+                impact = (await this.pob!.compareNode(node.id)).diff
+              } catch {
+                impact = null
+              }
+              out.push({ ...node, impact, impactScore: impact ? impactScore(impact) : 0 })
+            }
+            return out.sort((a, b) => b.impactScore - a.impactScore)
+          }
+          tree = {
+            ...t,
+            missing: {
+              ...t.missing,
+              keystones: await rate(t.missing.keystones),
+              notables: await rate(t.missing.notables),
+              ascendancy: t.missing.ascendancy
+            }
+          }
+        }
+        const skills = guide.skills ? compareSkills(guide.skills, (await this.pob!.skillsDetail()).groups) : null
+
+        return { guideName: guide.name, importedAt: guide.importedAt, guideInfo: guide.info, stats, slots, tree, skills }
       })
     )
   }
@@ -686,6 +722,8 @@ interface StoredGuide {
   info: BuildSnapshotDTO['info']
   stats: Record<string, number>
   items: DetailedItem[]
+  tree?: TreeDetail
+  skills?: SkillGroup[]
 }
 
 function toSessionDTO(s: SessionSummary): SessionSummaryDTO {

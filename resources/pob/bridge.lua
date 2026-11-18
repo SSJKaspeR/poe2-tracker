@@ -380,6 +380,63 @@ function commands.items_detail()
 	return { items = out }
 end
 
+-- Allocated passives (class, ascendancy, keystones, notables, small nodes, jewel sockets).
+function commands.tree_detail()
+	requireBuild()
+	local nodes = {}
+	local used = 0
+	for id, node in pairs(build.spec.allocNodes) do
+		local t = node.type
+		if t ~= "ClassStart" and t ~= "AscendClassStart" and t ~= "OnlyImage" then
+			local kind = node.ascendancyName and "ascendancy"
+				or (t == "Keystone" and "keystone")
+				or (t == "Notable" and "notable")
+				or (t == "Socket" and "jewel")
+				or "normal"
+			if not node.ascendancyName then used = used + 1 end
+			nodes[#nodes + 1] = { id = id, name = node.dn, kind = kind }
+		end
+	end
+	return {
+		className = build.spec.curClassName,
+		ascendancy = build.spec.curAscendClassName,
+		pointsUsed = used,
+		nodes = nodes,
+	}
+end
+
+-- Skill gems by socket group: active skills with their supports, level and quality.
+function commands.skills_detail()
+	requireBuild()
+	local groups = {}
+	for _, group in ipairs(build.skillsTab.socketGroupList) do
+		local gems = {}
+		for _, gem in ipairs(group.gemList or {}) do
+			local granted = gem.gemData and gem.gemData.grantedEffect
+				or (gem.skillId and data.skills[gem.skillId])
+			local name = (granted and granted.name) or gem.nameSpec
+			if name and name ~= "" then
+				gems[#gems + 1] = {
+					name = name,
+					level = gem.level or 0,
+					quality = gem.quality or 0,
+					support = (granted and granted.support) and true or false,
+					enabled = gem.enabled ~= false,
+				}
+			end
+		end
+		if #gems > 0 then
+			groups[#groups + 1] = {
+				label = group.label,
+				slot = group.slot,
+				enabled = group.enabled ~= false,
+				gems = gems,
+			}
+		end
+	end
+	return { groups = groups }
+end
+
 -- Gain from allocating a single passive node (by node id).
 function commands.compare_node(req)
 	requireBuild()

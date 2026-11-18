@@ -111,6 +111,25 @@ Item Level: 30
     })
   })
 
+  it('reads tree and gems, and rates a guide node on the player build', async () => {
+    const { readFileSync } = await import('node:fs')
+    const fx = (n: string) => readFileSync(resolve(ROOT, 'tests', 'fixtures', n), 'utf8').trim()
+    await bridge.loadCode(fx('build-guide-treegems.pobcode'))
+    const guideTree = await bridge.treeDetail()
+    const guideSkills = await bridge.skillsDetail()
+    expect(guideTree.nodes.some((n) => n.kind === 'keystone')).toBe(true)
+    expect(guideSkills.groups[0]!.gems.map((g) => g.name)).toContain('Lightning Arrow')
+
+    await bridge.loadCode(fx('build-player-treegems.pobcode'))
+    const playerTree = await bridge.treeDetail()
+    const mine = new Set(playerTree.nodes.map((n) => n.id))
+    const keystone = guideTree.nodes.find((n) => n.kind === 'keystone' && !mine.has(n.id))!
+    const r = await bridge.compareNode(keystone.id)
+    expect(r.node.name).toBe(keystone.name)
+    expect(r.before.Life).toBeGreaterThan(0)
+    expect(r.diff).toBeTypeOf("object")
+  })
+
   it('reports engine errors without crashing the bridge', async () => {
     await expect(bridge.compareItem('not an item')).rejects.toThrow()
     const r = await bridge.ping()

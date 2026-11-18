@@ -133,12 +133,54 @@ export interface GuideSlotDTO {
   uniquePrice: number | null
 }
 
+export interface GuideNodeDTO {
+  id: number
+  name: string
+  kind: 'keystone' | 'notable' | 'normal' | 'ascendancy' | 'jewel'
+  /** What allocating this guide node would change on the player's build (PoB). */
+  impact?: Record<string, { before: number; after: number; delta: number }> | null
+  impactScore?: number
+}
+
+export interface GuideTreeSideDTO {
+  keystones: GuideNodeDTO[]
+  notables: GuideNodeDTO[]
+  ascendancy: GuideNodeDTO[]
+  jewels: number
+  normal: number
+}
+
+export interface GuideTreeDTO {
+  playerPoints: number
+  guidePoints: number
+  sameAscendancy: boolean
+  playerAscendancy?: string
+  guideAscendancy?: string
+  missing: GuideTreeSideDTO
+  extra: GuideTreeSideDTO
+  coverage: number
+}
+
+export interface GuideSkillDTO {
+  skill: string
+  status: 'match' | 'partial' | 'missing'
+  guideLevel: number
+  playerLevel: number | null
+  guideQuality: number
+  playerQuality: number | null
+  missingSupports: string[]
+  extraSupports: string[]
+}
+
 export interface GuideComparisonDTO {
   guideName: string
   importedAt: string
   guideInfo: { className?: string; ascendancy?: string; level?: number; mainSkill?: string }
   stats: { key: string; player: number; guide: number }[]
   slots: GuideSlotDTO[]
+  /** Null for guides saved before tree/gem support: re-import the guide. */
+  tree: GuideTreeDTO | null
+  skills: { skills: GuideSkillDTO[]; extraSkills: string[] } | null
 }
 
 export interface PriceDTO {
