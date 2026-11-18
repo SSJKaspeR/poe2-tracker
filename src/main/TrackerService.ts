@@ -10,7 +10,7 @@ import { findClientLog } from '../core/logs/findClientLog'
 import { parseLine } from '../core/logs/parseLine'
 import { PobBridge, type PobBridgeOptions } from '../core/pob/PobBridge'
 import { PoeNinjaClient } from '../core/pricing/PoeNinjaClient'
-import { PRICE_TYPES, PriceBook } from '../core/pricing/PriceBook'
+import { EXCHANGE_TYPES, PriceBook, STASH_TYPES } from '../core/pricing/PriceBook'
 import { RunTracker, type Run } from '../core/runs/RunTracker'
 import type {
   ActiveBuildDTO,
@@ -258,15 +258,24 @@ export class TrackerService extends EventEmitter {
       const league = this.league ?? 'Standard'
       const book = new PriceBook()
       let failures = 0
-      for (const type of PRICE_TYPES) {
+      const jobs = [
+        ...EXCHANGE_TYPES.map((t) => () => this.pricing.prices(league, t)),
+        ...STASH_TYPES.map((t) => () => this.pricing.stashPrices(league, t))
+      ]
+      // First load: expose prices as each category arrives (≈ 1.5 s apart) instead of
+      // waiting for all of them. Later refreshes swap the whole book at the end.
+      const progressive = this.priceBook.size === 0
+      if (progressive) this.priceBook = book
+      for (const job of jobs) {
         try {
-          for (const p of await this.pricing.prices(league, type)) book.add(p)
+          for (const p of await job()) book.add(p)
+          if (progressive) this.emitStatus()
         } catch {
           failures++
         }
       }
       if (book.size > 0) this.priceBook = book
-      this.priceError = failures === PRICE_TYPES.length ? 'poe.ninja unreachable' : null
+      this.priceError = failures === jobs.length ? 'poe.ninja unreachable' : null
     } catch (err) {
       this.priceError = err instanceof Error ? err.message : String(err)
     }

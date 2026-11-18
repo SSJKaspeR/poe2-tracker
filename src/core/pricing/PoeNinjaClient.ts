@@ -44,6 +44,22 @@ export interface NinjaItem {
   detailsId?: string
 }
 
+/** Line of /poe2/api/economy/stash/current/item/overview (uniques, tablets). */
+export interface StashLine {
+  id: number
+  detailsId: string
+  name: string
+  baseType?: string
+  variant?: string
+  primaryValue: number
+  listingCount?: number
+}
+
+export interface StashOverview {
+  core?: { primary?: string }
+  lines: StashLine[]
+}
+
 export interface Price {
   id: string
   name: string
@@ -124,6 +140,66 @@ export class PoeNinjaClient {
   async prices(league: string, type: string): Promise<Price[]> {
     return toPrices(await this.exchangeOverview(league, type))
   }
+
+  /** Item overview (uniques, precursor tablets…), same caching rules as the exchange. */
+  async stashOverview(league: string, type: string, opts: { force?: boolean } = {}): Promise<StashOverview> {
+    const key = `${league}|stash|${type}`
+    const cached = this.cache.get(key)
+    if (cached && !opts.force && this.now() - cached.fetchedAt < this.ttlMs) {
+      return JSON.parse(cached.payload) as StashOverview
+    }
+    try {
+      const res = await this.limiter.schedule(() =>
+        this.http.get<StashOverview>('/poe2/api/economy/stash/current/item/overview', { params: { league, type } })
+      )
+      // Keep only what we use: the full payload carries every modifier and icon.
+      const slim: StashOverview = {
+        core: { primary: res.data.core?.primary ?? 'divine' },
+        lines: (res.data.lines ?? []).map((l) => ({
+          id: l.id,
+          detailsId: l.detailsId,
+          name: l.name,
+          baseType: l.baseType,
+          variant: l.variant,
+          primaryValue: l.primaryValue,
+          listingCount: l.listingCount
+        }))
+      }
+      this.cache.set(key, JSON.stringify(slim), this.now())
+      return slim
+    } catch (err) {
+      if (cached) return JSON.parse(cached.payload) as StashOverview
+      throw err
+    }
+  }
+
+  async stashPrices(league: string, type: string): Promise<Price[]> {
+    return toStashPrices(await this.stashOverview(league, type))
+  }
+}
+
+/**
+ * Stash lines → prices. Items with variants (tablet rarity) get it in the name:
+ * "Abyss Tablet (Rare)". The plain name maps to the cheapest variant, which is
+ * the safe default when the player doesn't say which one.
+ */
+export function toStashPrices(o: StashOverview): Price[] {
+  const currency = o.core?.primary ?? 'divine'
+  const out: Price[] = []
+  const cheapestByName = new Map<string, StashLine>()
+  for (const l of o.lines ?? []) {
+    if (typeof l.primaryValue !== 'number' || !Number.isFinite(l.primaryValue)) continue
+    const name = l.variant ? `${l.name} (${l.variant})` : l.name
+    out.push({ id: l.detailsId, name, value: l.primaryValue, currency })
+    if (l.variant) {
+      const prev = cheapestByName.get(l.name)
+      if (!prev || l.primaryValue < prev.primaryValue) cheapestByName.set(l.name, l)
+    }
+  }
+  for (const [name, l] of cheapestByName) {
+    out.push({ id: `${l.detailsId}#any`, name, value: l.primaryValue, currency })
+  }
+  return out
 }
 
 /** Join `lines` (values) with `items` (names) into a flat price list. */

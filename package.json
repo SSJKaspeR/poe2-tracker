@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "test:pob": "vitest run --config vitest.pob.config.ts",
     "setup:pob": "node scripts/setup-pob.mjs",
-    "test:e2e": "node tests/e2e/app.e2e.mjs"
+    "test:e2e": "node tests/e2e/app.e2e.mjs",
+    "test:live": "vitest run --config vitest.live.config.ts"
   },
   "dependencies": {
     "axios": "^1.13.0",

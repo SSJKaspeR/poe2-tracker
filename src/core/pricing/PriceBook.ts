@@ -1,26 +1,28 @@
 import type { Price } from './PoeNinjaClient'
 
 /**
- * Exchange categories queried on poe.ninja. Unknown categories just come back
- * empty, so this list can be generous.
- * ⚠️ to verify: category names for 1.0 (Waystones / Tablets may not be priced).
+ * Categories from the poe.ninja API docs (verified against the live API, Nov 2026).
+ * Omens are listed under Ritual. Waystones are not priced: use a manual value.
  */
-export const PRICE_TYPES = [
+export const EXCHANGE_TYPES = [
   'Currency',
   'Fragments',
-  'Runes',
+  'Abyss',
+  'UncutGems',
+  'LineageSupportGems',
   'Essences',
   'SoulCores',
   'Idols',
-  'Omens',
-  'Breach',
-  'Delirium',
-  'Expedition',
+  'Runes',
   'Ritual',
-  'Abyss',
-  'UncutGems',
-  'LineageSupportGems'
+  'Expedition',
+  'Delirium',
+  'Breach',
+  'Verisium'
 ] as const
+
+/** Item (stash) overview categories needed for investment tracking. Uniques come with the upgrade finder. */
+export const STASH_TYPES = ['PrecursorTablets', 'UniqueTablets'] as const
 
 /** Lookup table over every cached price, by poe.ninja id or by item name. */
 export class PriceBook {
