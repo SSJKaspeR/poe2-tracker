@@ -44,6 +44,8 @@ export function TradeUpgrade({ slot, slots, onSlot }: { slot: string | null; slo
   const [instant, setInstant] = useState(false)
   const [preview, setPreview] = useState<TradePreviewDTO | null>(null)
   const [showAll, setShowAll] = useState(false)
+  // Each click is a search on the trade site with the player's account: no accidental double clicks.
+  const [cooldown, setCooldown] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -266,8 +268,16 @@ export function TradeUpgrade({ slot, slots, onSlot }: { slot: string | null; slo
             )}
 
             <div className="mt-3 flex items-center gap-3">
-              <Button disabled={!url || active === 0} onClick={() => url && window.open(url, '_blank')}>
-                Open trade search
+              <Button
+                disabled={!url || active === 0 || cooldown}
+                onClick={() => {
+                  if (!url) return
+                  window.open(url, '_blank')
+                  setCooldown(true)
+                  setTimeout(() => setCooldown(false), 3000)
+                }}
+              >
+                {cooldown ? 'Opened in your browser' : 'Open trade search'}
               </Button>
               <span className="text-xs text-stone-500">
                 {active} stat{active === 1 ? '' : 's'} · opens pathofexile.com in your browser

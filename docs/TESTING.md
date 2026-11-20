@@ -46,3 +46,18 @@
 - Real PoE 2 Client.txt format (patterns written from PoE 1 + docs; to check on a real log)
 - Ctrl+C text copied by the PoE 2 client (format assumed from PoB's parser)
 - Map completion / boss kill lines, pinnacle arena area ids
+
+## Network budget (poe.ninja)
+
+The app makes automatic HTTP requests to **poe.ninja only** (no GGG API, no trade API).
+`tests/unit/ninjaBudget.test.ts` enforces it:
+
+- one request per price category per hour at most (22 categories), plus the league list once a day;
+- requests are queued one at a time, 1.5 s apart; identical requests in flight are merged;
+- conditional requests (`If-None-Match`): an unchanged category returns `304`, with no body;
+- `429` → pause for `Retry-After` (or 1 h); `401/403` → 6 h; network/5xx → 10 min. During a pause,
+  saved prices are served and **nothing** is sent; a refresh stops at the first refusal;
+- the app runs as a single instance (a second launch focuses the first window);
+- "Open trade search" only opens the browser, with a 3 s cooldown.
+
+The request count (last hour / 24 h) is shown in the tooltip of the price indicator in the header.

@@ -132,10 +132,24 @@ function syncClipboardWatcher(svc: TrackerService): void {
   else clipboardWatcher.stop()
 }
 
+// One instance only: a second window would double every poe.ninja request and share the database.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+}
+
 app.whenReady().then(async () => {
+  if (!app.hasSingleInstanceLock()) return
   service = new TrackerService({
     dbPath: join(app.getPath('userData'), 'poe2-tracker.db'),
     pob: pobOptions(),
+    userAgent: `PoE2Tracker/${app.getVersion()} (+https://github.com/SSJKaspeR/poe2-tracker)`,
     log: (msg) => {
       if (process.env.POE2_TRACKER_DEBUG) console.log(msg)
     }

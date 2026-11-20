@@ -99,7 +99,7 @@ function HeaderStatus() {
     <div className="flex items-center gap-4 text-xs">
       <span
         className={status.prices.count ? 'text-stone-400' : 'text-amber-500'}
-        title={status.prices.error ?? `${status.prices.count} prices`}
+        title={`${status.prices.error ? status.prices.error + ' — ' : ''}${status.prices.count} prices · poe.ninja requests: ${status.prices.requestsLastHour} in the last hour, ${status.prices.requestsLast24h} in 24 h`}
       >
         {status.league ?? '…'} · {status.prices.count ? `${status.prices.count} prices` : status.prices.error ?? 'loading prices'}
       </span>

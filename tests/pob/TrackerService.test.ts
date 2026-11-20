@@ -30,8 +30,9 @@ Item Level: 80
 
 // ── Fake poe.ninja ──────────────────────────────────────────────────────────
 
-function fakeNinja(opts: { leaguesFail?: () => boolean } = {}) {
+function fakeNinja(opts: { leaguesFail?: () => boolean; cachePath?: string } = {}) {
   const calls: string[] = []
+  const clock = { now: Date.now() }
   const http = {
     get: async (url: string, cfg?: { params?: { type?: string } }) => {
       calls.push(`${url}?${cfg?.params?.type ?? ''}`)
@@ -58,12 +59,13 @@ function fakeNinja(opts: { leaguesFail?: () => boolean } = {}) {
     }
   }
   const client = new PoeNinjaClient({
-    cache: new SqlitePriceCache(new AppDatabase(':memory:').db),
-    http: http as unknown as AxiosInstance
+    cache: new SqlitePriceCache(new AppDatabase(opts.cachePath ?? ':memory:').db),
+    http: http as unknown as AxiosInstance,
+    now: () => clock.now
   })
   // No 1.5 s politeness delay in tests.
   ;(client as unknown as { limiter: { schedule: <T>(f: () => Promise<T>) => Promise<T> } }).limiter = { schedule: (f) => f() }
-  return { client, calls }
+  return { client, calls, clock }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -93,7 +95,7 @@ async function startService(f: { db: string; log: string }, opts: { useLogEnv?: 
   services.push(svc)
   await svc.start()
   await waitFor(() => svc.status().pob.running && svc.status().pob.version !== null, 'PoB ready')
-  await waitFor(() => svc.status().prices.count > 0, 'prices')
+  await waitFor(() => svc.status().prices.count > 0 || svc.status().prices.error !== null, 'prices')
   return svc
 }
 
@@ -309,12 +311,33 @@ describe.skipIf(!paths)('TrackerService (whole app logic, real engine)', () => {
     expect(unwrap(await svc.buildSnapshot())!.stats).toEqual(before)
   })
 
+  it('prices: overlapping refreshes and restarts send no extra requests while the cache is fresh', async () => {
+    const f = folder()
+    const cachePath = join(f.dir, 'prices.db')
+    const ninja = fakeNinja({ cachePath })
+    let svc = await startService(f, { ninja })
+    const afterStart = ninja.calls.length
+    await Promise.all([svc.refreshPrices(), svc.refreshPrices(), svc.refreshPrices()])
+    expect(ninja.calls.length).toBe(afterStart)
+    expect(svc.status().prices.requestsLastHour).toBe(afterStart)
+    await svc.stop()
+    services.splice(services.indexOf(svc), 1)
+    // Restart with a fresh client but the same database: the saved cache is still fresh.
+    const ninja2 = fakeNinja({ cachePath })
+    svc = await startService(f, { ninja: ninja2 })
+    expect(ninja2.calls).toEqual([])
+  })
+
   it('prices: retries the league when poe.ninja was down at startup', async () => {
     let down = true
     const ninja = fakeNinja({ leaguesFail: () => down })
     const svc = await startService(folder(), { ninja })
     expect(svc.status().league).toBeNull()
+    expect(svc.status().prices.error).toMatch(/paused|unreachable/)
     down = false
+    await svc.refreshPrices() // still in the 10 min back-off: nothing sent
+    expect(svc.status().league).toBeNull()
+    ninja.clock.now += 11 * 60_000
     await svc.refreshPrices()
     expect(svc.status().league).toBe('Test League')
   })

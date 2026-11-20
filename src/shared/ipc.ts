@@ -48,7 +48,14 @@ export interface AppStatus {
   todayProfit: ProfitSummaryDTO
   build: ActiveBuildDTO | null
   league: string | null
-  prices: { count: number; exaltedPerDivine: number | null; error: string | null }
+  prices: {
+    count: number
+    exaltedPerDivine: number | null
+    error: string | null
+    /** HTTP requests actually sent to poe.ninja (a fresh cache sends none; a 304 counts as one). */
+    requestsLastHour: number
+    requestsLast24h: number
+  }
   activePresetId: number | null
   autoApplyPreset: boolean
   clipboardWatch: boolean

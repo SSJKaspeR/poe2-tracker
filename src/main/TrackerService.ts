@@ -69,6 +69,7 @@ export class TrackerService extends EventEmitter {
   /** Engine process generation whose build is the player's (reloaded after a crash). */
   private loadedGeneration = -1
   private readonly tradeWeightCache = new Map<string, TradeWeightsDTO>()
+  private refreshing: Promise<void> | null = null
   private stopped = false
 
   constructor(opts: {
@@ -76,6 +77,8 @@ export class TrackerService extends EventEmitter {
     pob: Omit<PobBridgeOptions, 'onLog'> | null
     log?: (msg: string) => void
     pricing?: PoeNinjaClient
+    /** Sent to poe.ninja, e.g. "PoE2Tracker/0.1.0 (+https://github.com/…)". */
+    userAgent?: string
   }) {
     super()
     this.database = new AppDatabase(opts.dbPath)
@@ -84,7 +87,7 @@ export class TrackerService extends EventEmitter {
     this.economy = new Economy(this.database.db, () => this.priceBook)
     this.sessions = new SessionRepository(this.database.db, () => this.priceBook)
     this.tracker.setTrackOtherAreas(this.sessions.active()?.mode === 'boss')
-    this.pricing = opts.pricing ?? new PoeNinjaClient({ cache: new SqlitePriceCache(this.database.db) })
+    this.pricing = opts.pricing ?? new PoeNinjaClient({ cache: new SqlitePriceCache(this.database.db), userAgent: opts.userAgent })
     this.pob = opts.pob ? new PobBridge({ ...opts.pob, onLog: (l) => opts.log?.(`[pob] ${l}`) }) : null
     if (!opts.pob) this.pobError = 'Path of Building engine not installed (run `npm run setup:pob`)'
 
@@ -210,7 +213,9 @@ export class TrackerService extends EventEmitter {
       prices: {
         count: this.priceBook.size,
         exaltedPerDivine: exalted && exalted.value > 0 ? 1 / exalted.value : null,
-        error: this.priceError
+        error: this.priceError,
+        requestsLastHour: this.pricing.usage().lastHour,
+        requestsLast24h: this.pricing.usage().last24h
       },
       activePresetId: this.activePresetId(),
       autoApplyPreset: this.getSetting('autoApplyPreset') === '1',
@@ -494,7 +499,17 @@ export class TrackerService extends EventEmitter {
 
   // ── Economy ───────────────────────────────────────────────────────────────
 
-  async refreshPrices(): Promise<void> {
+  /** Refresh prices from poe.ninja (only categories whose cache expired). One refresh at a time. */
+  refreshPrices(): Promise<void> {
+    if (!this.refreshing) {
+      this.refreshing = this.doRefreshPrices().finally(() => {
+        this.refreshing = null
+      })
+    }
+    return this.refreshing
+  }
+
+  private async doRefreshPrices(): Promise<void> {
     try {
       // Keep the league only once poe.ninja answered; otherwise retry on the next refresh.
       if (!this.league) this.league = this.getSetting('league') ?? (await this.pickLeague())
@@ -518,7 +533,12 @@ export class TrackerService extends EventEmitter {
         }
       }
       if (book.size > 0) this.priceBook = book
-      this.priceError = failures === jobs.length ? 'poe.ninja unreachable' : null
+      const usage = this.pricing.usage()
+      this.priceError = usage.pausedUntil
+        ? `poe.ninja paused (${usage.pauseReason}) — using saved prices`
+        : failures === jobs.length
+          ? 'poe.ninja unreachable'
+          : null
     } catch (err) {
       this.priceError = err instanceof Error ? err.message : String(err)
     }

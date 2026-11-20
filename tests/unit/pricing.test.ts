@@ -43,9 +43,10 @@ describe('PoeNinjaClient', () => {
     const client = new PoeNinjaClient({ cache: new SqlitePriceCache(db.db), http, now: () => now })
 
     await client.prices('Standard', 'Currency')
-    expect(get).toHaveBeenCalledWith('/poe2/api/economy/exchange/current/overview', {
-      params: { league: 'Standard', type: 'Currency' }
-    })
+    expect(get).toHaveBeenCalledWith(
+      '/poe2/api/economy/exchange/current/overview',
+      expect.objectContaining({ params: { league: 'Standard', type: 'Currency' } })
+    )
 
     now += 30 * 60_000
     await client.prices('Standard', 'Currency')
@@ -95,9 +96,10 @@ describe('toStashPrices (precursor tablets, real poe.ninja lines Nov 2026)', () 
     const cache = new SqlitePriceCache(db.db)
     const client = new PoeNinjaClient({ cache, http })
     await client.stashPrices('Forbidden Rites', 'PrecursorTablets')
-    expect(get).toHaveBeenCalledWith('/poe2/api/economy/stash/current/item/overview', {
-      params: { league: 'Forbidden Rites', type: 'PrecursorTablets' }
-    })
+    expect(get).toHaveBeenCalledWith(
+      '/poe2/api/economy/stash/current/item/overview',
+      expect.objectContaining({ params: { league: 'Forbidden Rites', type: 'PrecursorTablets' } })
+    )
     expect(cache.get('Forbidden Rites|stash|PrecursorTablets')!.payload).not.toContain('explicitModifiers')
   })
 })

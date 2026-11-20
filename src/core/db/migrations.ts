@@ -126,5 +126,12 @@ export const MIGRATIONS: Migration[] = [
         currency    TEXT
       );
     `
+  },
+  {
+    version: 4,
+    sql: `
+      -- ETag of cached poe.ninja responses, for conditional requests (304 Not Modified).
+      ALTER TABLE price_cache ADD COLUMN etag TEXT;
+    `
   }
 ]
