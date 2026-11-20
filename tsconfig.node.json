@@ -26,6 +26,7 @@
     "src/preload/**/*",
     "src/core/**/*",
     "src/shared/**/*",
-    "tests/**/*"
+    "tests/**/*",
+    "src/renderer/src/format.ts"
   ]
 }

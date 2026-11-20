@@ -11,6 +11,12 @@ import { watch, type FSWatcher } from 'chokidar'
 export interface LogTailerOptions {
   /** Replay the last N bytes on start (useful to recover a run in progress). */
   replayBytes?: number
+  /**
+   * Resume at this byte offset (a value from `consumedPosition` saved earlier):
+   * lines written while the app was closed are read, nothing is read twice.
+   * Ignored when the file is now shorter (new game session / truncated file).
+   */
+  startPosition?: number
   /** Polling interval used by the watcher, in ms. Client.txt is often on slow disks. */
   pollIntervalMs?: number
 }
@@ -30,13 +36,19 @@ export class LogTailer {
 
   async start(): Promise<void> {
     const s = await stat(this.path)
-    this.position = Math.max(0, s.size - (this.opts.replayBytes ?? 0))
-    if (this.position > 0 && this.opts.replayBytes) {
-      // Skip to the next full line so we never emit half a line.
-      this.partial = ''
-      this.skipFirstPartial = true
+    const resume = this.opts.startPosition
+    if (resume !== undefined && resume >= 0 && resume <= s.size) {
+      this.position = resume
+      await this.readNew()
+    } else {
+      this.position = Math.max(0, s.size - (this.opts.replayBytes ?? 0))
+      if (this.position > 0 && this.opts.replayBytes) {
+        // Skip to the next full line so we never emit half a line.
+        this.partial = ''
+        this.skipFirstPartial = true
+      }
+      if (this.opts.replayBytes) await this.readNew()
     }
-    if (this.opts.replayBytes) await this.readNew()
 
     this.watcher = watch(this.path, {
       usePolling: true,
@@ -50,6 +62,11 @@ export class LogTailer {
     await this.watcher?.close()
     this.watcher = null
     await this.reading
+  }
+
+  /** Byte offset of the end of the last complete line handed to `onLine` (to save and resume from). */
+  get consumedPosition(): number {
+    return this.position - Buffer.byteLength(this.partial, 'utf8')
   }
 
   /** Read any new bytes now (also used by tests). */

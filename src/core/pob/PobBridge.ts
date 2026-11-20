@@ -81,11 +81,22 @@ export class PobBridge {
   private nextId = 1
   private readonly pending = new Map<number, Pending>()
   private readyPromise: Promise<void> | null = null
+  private starts = 0
 
   constructor(private readonly opts: PobBridgeOptions) {}
 
   get running(): boolean {
     return this.proc !== null
+  }
+
+  /** Increases each time a new engine process is spawned (to detect restarts after a crash). */
+  get startCount(): number {
+    return this.starts
+  }
+
+  /** Kill the engine process (simulates a crash in tests; the next request restarts it). */
+  kill(): void {
+    this.proc?.kill()
   }
 
   /** Spawn LuaJIT and wait until PoB has finished loading. Idempotent. */
@@ -107,6 +118,7 @@ export class PobBridge {
     this.readyPromise = new Promise<void>((resolve, reject) => {
       const proc = spawn(luajitPath, [bridgeScript], { cwd: join(pobDir, 'src'), env, windowsHide: true })
       this.proc = proc
+      this.starts += 1
 
       const startupTimer = setTimeout(() => {
         reject(new PobBridgeError('Path of Building did not start in time'))

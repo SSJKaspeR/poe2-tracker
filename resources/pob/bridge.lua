@@ -217,6 +217,15 @@ end
 
 function commands.load_xml(req)
 	assert(type(req.xml) == "string", "xml required")
+	-- PoB keeps the previous build (and only shows a popup) when the XML is not a
+	-- PoE 2 build: check it first so a bad code is reported, never silently ignored.
+	local dbXML, errMsg = common.xml.ParseXML(req.xml)
+	if not dbXML or not dbXML[1] then
+		error("invalid build code (not a Path of Building build): " .. tostring(errMsg or "empty"))
+	end
+	if dbXML[1].elem ~= "PathOfBuilding2" then
+		error("invalid build code: this is not a Path of Exile 2 build (" .. tostring(dbXML[1].elem) .. ")")
+	end
 	loadBuildFromXML(req.xml, req.name or "Imported")
 	requireBuild()
 	return { info = buildInfo(), stats = pickStats(build.calcsTab.mainOutput), items = equippedItems() }

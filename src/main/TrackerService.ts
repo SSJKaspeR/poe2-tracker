@@ -64,6 +64,9 @@ export class TrackerService extends EventEmitter {
   private pobReady: Promise<void> = Promise.resolve()
   /** PoB holds one build at a time: every engine operation goes through this queue. */
   private pobQueue: Promise<unknown> = Promise.resolve()
+  /** Engine process generation whose build is the player's (reloaded after a crash). */
+  private loadedGeneration = -1
+  private stopped = false
 
   constructor(opts: {
     dbPath: string
@@ -83,6 +86,7 @@ export class TrackerService extends EventEmitter {
     if (!opts.pob) this.pobError = 'Path of Building engine not installed (run `npm run setup:pob`)'
 
     this.tracker.on((e) => {
+      if (this.stopped) return
       if (e.type === 'run_started') {
         this.runs.upsert(e.run, { buildVersionId: this.activeVersionId() })
         const session = this.sessions.active()
@@ -98,6 +102,7 @@ export class TrackerService extends EventEmitter {
         }
       } else if (e.type === 'run_completed') {
         this.runs.upsert(e.run, { endReason: e.reason })
+        this.saveLogPosition()
       } else {
         this.runs.upsert(e.run)
       }
@@ -110,7 +115,12 @@ export class TrackerService extends EventEmitter {
     const saved = this.getSetting('clientLogPath')
     const path = override && existsSync(override) ? override : saved && existsSync(saved) ? saved : findClientLog()
     if (path) await this.watchLog(path)
-    this.timers.push(setInterval(() => this.tracker.tick(new Date()), 30_000))
+    this.timers.push(
+      setInterval(() => {
+        this.tracker.tick(new Date())
+        this.saveLogPosition()
+      }, 30_000)
+    )
     this.timers.push(setInterval(() => void this.refreshPrices(), PRICE_REFRESH_MS))
     // Slow work in the background: PoB loads in a few seconds, prices need the network.
     this.pobReady = this.startPob()
@@ -118,11 +128,16 @@ export class TrackerService extends EventEmitter {
   }
 
   async stop(): Promise<void> {
+    if (this.stopped) return
     for (const t of this.timers) clearInterval(t)
-    const current = this.tracker.endCurrentRun(new Date())
-    if (current) this.runs.upsert(current, { endReason: 'manual' })
     await this.tailer?.stop()
+    this.saveLogPosition()
+    const current = this.tracker.endCurrentRun(new Date())
+    this.stopped = true
+    if (current) this.runs.upsert(current, { endReason: 'manual' })
     await this.pob?.stop()
+    // Let in-flight work (price refresh, engine queue) settle before closing the database.
+    await this.pobQueue.catch(() => undefined)
     this.database.close()
   }
 
@@ -130,17 +145,36 @@ export class TrackerService extends EventEmitter {
     await this.tailer?.stop()
     this.clientLogPath = path
     this.setSetting('clientLogPath', path)
-    // Replay the tail so a run in progress at app start is picked up.
+    // Resume where the last session stopped reading (maps played while the app was
+    // closed are picked up, nothing is counted twice). First time on this file:
+    // replay its end so a map in progress is found.
+    const saved = this.getLogState()
     this.tailer = new LogTailer(
       path,
       (line) => {
         const event = parseLine(line)
         if (event) this.tracker.handle(event)
       },
-      { replayBytes: 64 * 1024 }
+      { replayBytes: 64 * 1024, ...(saved && saved.path === path ? { startPosition: saved.offset } : {}) }
     )
     await this.tailer.start()
+    this.saveLogPosition()
     this.emitStatus()
+  }
+
+  private getLogState(): { path: string; offset: number } | null {
+    const raw = this.getSetting('logState')
+    if (!raw) return null
+    try {
+      return JSON.parse(raw) as { path: string; offset: number }
+    } catch {
+      return null
+    }
+  }
+
+  private saveLogPosition(): void {
+    if (this.stopped || !this.tailer || !this.clientLogPath) return
+    this.setSetting('logState', JSON.stringify({ path: this.clientLogPath, offset: this.tailer.consumedPosition }))
   }
 
   endCurrentRun(): void {
@@ -616,10 +650,9 @@ export class TrackerService extends EventEmitter {
     if (!this.pob) return
     const pob = this.pob
     try {
+      // withPob starts the engine and loads the player's build.
       await this.withPob(async () => {
-        await pob.start()
         this.pobVersion = (await pob.ping()).version ?? null
-        await this.loadActiveVersion()
       })
       this.pobError = null
     } catch (err) {
@@ -628,9 +661,24 @@ export class TrackerService extends EventEmitter {
     this.emitStatus()
   }
 
-  /** Current softcore challenge league from poe.ninja, or null when unreachable. */
+  /**
+   * Run an engine operation in the queue. Starts the engine if needed and, after a
+   * (re)start, loads the player's active build first, so a crash never leaves the
+   * engine on an empty build.
+   */
   private withPob<T>(fn: () => Promise<T>): Promise<T> {
-    const next = this.pobQueue.then(fn, fn)
+    const run = async () => {
+      const pob = this.pob
+      if (pob) {
+        await pob.start()
+        if (pob.startCount !== this.loadedGeneration) {
+          await this.loadActiveVersion()
+          this.loadedGeneration = pob.startCount
+        }
+      }
+      return fn()
+    }
+    const next = this.pobQueue.then(run, run)
     this.pobQueue = next.catch(() => undefined)
     return next
   }
@@ -643,6 +691,7 @@ export class TrackerService extends EventEmitter {
     else await this.pob!.newBuild()
   }
 
+  /** Current softcore challenge league from poe.ninja, or null when unreachable. */
   private async pickLeague(): Promise<string | null> {
     try {
       const leagues = await this.pricing.leagues()
@@ -678,6 +727,7 @@ export class TrackerService extends EventEmitter {
   }
 
   private emitStatus(): void {
+    if (this.stopped) return
     this.emit('status', this.status())
   }
 

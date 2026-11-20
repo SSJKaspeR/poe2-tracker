@@ -57,6 +57,11 @@ try {
   await win.getByText('Reading Client.txt').waitFor({ timeout: 15_000 })
   await win.getByText(/● engine \d/).waitFor({ timeout: 60_000 })
 
+  step('a broken build code shows an error')
+  await win.getByPlaceholder('PoB code (eNrt…)').fill('eNrt' + 'A'.repeat(40))
+  await win.getByRole('button', { name: 'Import build' }).click()
+  await win.getByText(/invalid build code/).first().waitFor({ timeout: 15_000 })
+
   step('import build')
   await win.getByPlaceholder('PoB code (eNrt…)').fill(BUILD_CODE)
   await win.getByRole('button', { name: 'Import build' }).click()

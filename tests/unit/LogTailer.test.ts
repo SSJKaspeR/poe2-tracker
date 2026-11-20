@@ -62,3 +62,32 @@ describe('LogTailer', () => {
     expect(lines).toEqual(['Zoné ✓'])
   })
 })
+
+describe('LogTailer resume', () => {
+  it('resumes exactly after the last complete line, including lines written while stopped', async () => {
+    const { file, lines } = setup('a\nb\n')
+    const t = new LogTailer(file, (l) => lines.push(l))
+    tailers.push(t)
+    await t.start()
+    appendFileSync(file, 'c\nhalf')
+    await t.flush()
+    const saved = t.consumedPosition
+    await t.stop()
+    expect(lines).toEqual(['c'])
+
+    appendFileSync(file, '-line\nd\n')
+    const again: string[] = []
+    const t2 = new LogTailer(file, (l) => again.push(l), { startPosition: saved, replayBytes: 1000 })
+    tailers.push(t2)
+    await t2.start()
+    expect(again).toEqual(['half-line', 'd'])
+  })
+
+  it('falls back to replaying the end when the file is shorter than the saved position', async () => {
+    const { file, lines } = setup('new game\n')
+    const t = new LogTailer(file, (l) => lines.push(l), { startPosition: 10_000, replayBytes: 1000 })
+    tailers.push(t)
+    await t.start()
+    expect(lines).toEqual(['new game'])
+  })
+})
