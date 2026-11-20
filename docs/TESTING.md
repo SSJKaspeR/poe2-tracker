@@ -61,3 +61,18 @@ The app makes automatic HTTP requests to **poe.ninja only** (no GGG API, no trad
 - "Open trade search" only opens the browser, with a 3 s cooldown.
 
 The request count (last hour / 24 h) is shown in the tooltip of the price indicator in the header.
+
+## Loot filter and price checkers
+
+- `tests/unit/lootFilter.test.ts`: filter syntax and first-match rules (`Continue`, area level,
+  operators), on hand-written rules and on two real NeverSink PoE 2 filters (MIT, test fixtures);
+  detection of the filter selected in game (`item_filter=` in the config .ini, `OnlineFilters`),
+  fallback on the most recent `.filter`.
+- `tests/pob/TrackerService.test.ts` ("loot filter"): priced items hidden by the player's filter,
+  threshold in exalted, manual choice of the file.
+- Exiled Exchange 2 also copies items (Ctrl+D). Only equipment is compared (`isGearText`); the app
+  shows a notice instead of switching tab. PoB reads the advanced copy (Ctrl+Alt+C) the same way.
+- E2E: `POE2_FILTER_DIR` points the app at a test folder holding the 6-UBER-PLUS-STRICT filter.
+
+⚠️ To verify on a real Windows install: the exact config .ini name and how followed (online) filters
+are cached. Until then the player can pick the file in Maps → Loot filter.

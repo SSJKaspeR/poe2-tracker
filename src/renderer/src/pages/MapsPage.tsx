@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { RunDetailDTO, RunLinesDTO } from '@shared/ipc'
 import { Card } from '../components/Card'
 import { ItemPicker } from '../components/ItemPicker'
+import { LootFilterPanel } from '../components/LootFilterPanel'
 import { formatDuration } from '../format'
 import { useMoney, useTracker } from '../store'
 
@@ -161,6 +162,8 @@ export function MapsPage() {
           </table>
         </Card>
       )}
+
+      <LootFilterPanel />
     </div>
   )
 }

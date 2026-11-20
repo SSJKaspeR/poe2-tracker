@@ -62,6 +62,27 @@ describe.skipIf(!paths)('PobBridge (real Path of Building engine)', () => {
     expect(cmp.diff.Armour?.after).toBeGreaterThan(0)
   })
 
+  it('understands the advanced copy (Ctrl+Alt+C, used by price checkers) the same way', async () => {
+    await bridge.newBuild()
+    const advanced = `Item Class: Body Armours
+Rarity: Rare
+Gloom Shell
+Iron Cuirass
+--------
+Item Level: 80
+--------
+{ Prefix Modifier "Healthy" (Tier: 3) — Life }
++90(80-99) to maximum Life
+{ Suffix Modifier "of the Furnace" (Tier: 2) — Elemental, Fire, Resistance }
++40(36-40)% to Fire Resistance
+{ Suffix Modifier "of the Tundra" (Tier: 3) — Elemental, Cold, Resistance }
++30(26-30)% to Cold Resistance`
+    const cmp = await bridge.compareItem(advanced)
+    expect(cmp.diff.Life?.delta).toBe(95)
+    expect(cmp.diff.FireResist?.delta).toBe(40)
+    expect(cmp.diff.ColdResist?.delta).toBe(30)
+  })
+
   it('equips an item and keeps it after export/import', async () => {
     await bridge.newBuild()
     const equipped = await bridge.equipItem(BODY_ARMOUR)

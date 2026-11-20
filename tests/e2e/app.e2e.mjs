@@ -6,7 +6,7 @@
 // Plays a full session: Client.txt maps, strategy auto-applied to each map,
 // loot declared, build imported, item compared via Ctrl+C, item equipped.
 
-import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron } from 'playwright-core'
@@ -42,7 +42,11 @@ const args = [...(packaged ? [] : [ROOT]), `--user-data-dir=${join(work, 'userda
 if (process.platform === 'linux') args.push('--no-sandbox')
 
 // The packaged app must find its own engine: hide dev engine overrides.
-const env = { ...process.env, POE2_CLIENT_LOG: logPath }
+const filterDir = join(work, 'Path of Exile 2')
+mkdirSync(filterDir)
+copyFileSync(join(ROOT, 'tests/fixtures/filters/neversink-6-uber-plus-strict.filter'), join(filterDir, 'NeverSink Uber Plus.filter'))
+writeFileSync(join(filterDir, 'poe2_production_Config.ini'), 'item_filter=NeverSink Uber Plus.filter\n')
+const env = { ...process.env, POE2_CLIENT_LOG: logPath, POE2_FILTER_DIR: filterDir }
 if (packaged) delete env.POB_ENGINE_DIR
 const app = await electron.launch({ args, env, ...(packaged ? { executablePath: packaged } : {}) })
 const win = await app.firstWindow()
@@ -138,6 +142,14 @@ try {
   await maps.getByText('2 × Test loot').waitFor({ timeout: 5_000 })
   await win.screenshot({ path: join(SHOTS, 'screenshot-maps.png') })
 
+  step('Maps tab: loot filter detected, hidden valuable items listed')
+  const lf = win.locator('section', { hasText: 'Loot filter' })
+  await lf.getByText('6-UBER-PLUS-STRICT').waitFor({ timeout: 10_000 })
+  await lf.getByRole('button', { name: '0.5 ex' }).click()
+  await lf.getByText(/Your filter (hides|shows everything)/).waitFor({ timeout: 10_000 })
+  await lf.scrollIntoViewIfNeeded()
+  await win.screenshot({ path: join(SHOTS, 'screenshot-loot-filter.png') })
+
   step('Build tab: full stats and change timeline')
   await win.getByRole('tab', { name: 'Build' }).click()
   const timeline = win.locator('section', { hasText: 'Changes & impact' })
@@ -218,10 +230,19 @@ try {
   if (!/Lightning Arrow[\s\S]*Not used[\s\S]*Lightning Penetration, Multishot I/i.test(gems)) fail(`gems view: ${gems}`)
   await win.screenshot({ path: join(SHOTS, 'screenshot-guide-gems.png') })
 
-  step('Ctrl+C from another tab brings the Dashboard back')
+  step('Ctrl+C from another tab: notice instead of switching; currency price checks ignored')
+  await app.evaluate(
+    async ({ clipboard }, text) => clipboard.writeText(text),
+    'Item Class: Stackable Currency\nRarity: Currency\nExalted Orb\n--------\nStack Size: 3/20'
+  )
+  await win.waitForTimeout(1_500)
+  if (await win.getByText('New item compared').isVisible()) fail('currency copy triggered a comparison')
   await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), ITEM.replace('+90 to maximum Life', '+10 to maximum Life'))
+  await win.getByText('New item compared').waitFor({ timeout: 15_000 })
+  if (!(await win.getByRole('tab', { name: 'Build' }).getAttribute('aria-selected'))?.includes('true')) fail('tab was switched')
+  await win.getByRole('button', { name: 'View comparison' }).click()
   await win.locator('section', { hasText: 'Compare an item' }).getByText('replaces your').waitFor({ timeout: 15_000 })
-  if (!(await win.getByRole('tab', { name: 'Dashboard' }).getAttribute('aria-selected'))?.includes('true')) fail('dashboard not selected')
+  if (!(await win.getByRole('tab', { name: /Dashboard/ }).getAttribute('aria-selected'))?.includes('true')) fail('dashboard not selected')
 
   step('boss session: arena tracked as an attempt, marked as killed')
   await win.getByRole('button', { name: 'End session' }).click()

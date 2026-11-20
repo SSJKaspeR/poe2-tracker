@@ -1,6 +1,7 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { join, resolve } from 'node:path'
 import { ClipboardWatcher } from '../core/clipboard/ClipboardWatcher'
+import { poe2DocumentsDirs } from '../core/filter/findLootFilter'
 import { resolvePobPaths } from '../core/pob/paths'
 import { TrackerService } from './TrackerService'
 
@@ -81,6 +82,21 @@ function registerIpc(svc: TrackerService): void {
   ipcMain.handle('trade:weights', (_e, slot: string) => svc.tradeWeights(slot))
   ipcMain.handle('trade:preview', (_e, slot: string, mods) => svc.tradePreview(slot, mods))
   ipcMain.handle('runs:detailed', (_e, sinceDays: number | null) => svc.runsDetailed(sinceDays))
+  ipcMain.handle('filter:get', (_e, minExalted?: number) => svc.lootFilter(minExalted ?? 1))
+  ipcMain.handle('filter:set', (_e, path: string | null) => {
+    svc.setLootFilter(path)
+    return svc.lootFilter()
+  })
+  ipcMain.handle('filter:browse', async () => {
+    const r = await dialog.showOpenDialog({
+      title: 'Choose your PoE 2 loot filter',
+      defaultPath: poe2DocumentsDirs(app.getPath('documents'), app.getPath('home'))[0],
+      filters: [{ name: 'Loot filter', extensions: ['filter'] }, { name: 'All files', extensions: ['*'] }],
+      properties: ['openFile']
+    })
+    if (!r.canceled && r.filePaths[0]) svc.setLootFilter(r.filePaths[0])
+    return svc.lootFilter()
+  })
   ipcMain.handle('clipboard:set-watch', (_e, on: boolean) => {
     svc.setClipboardWatch(on)
     syncClipboardWatcher(svc)
@@ -149,6 +165,10 @@ app.whenReady().then(async () => {
   service = new TrackerService({
     dbPath: join(app.getPath('userData'), 'poe2-tracker.db'),
     pob: pobOptions(),
+    // POE2_FILTER_DIR: tests and unusual installs.
+    filterDirs: process.env.POE2_FILTER_DIR
+      ? [process.env.POE2_FILTER_DIR]
+      : poe2DocumentsDirs(app.getPath('documents'), app.getPath('home')),
     userAgent: `PoE2Tracker/${app.getVersion()} (+https://github.com/SSJKaspeR/poe2-tracker)`,
     log: (msg) => {
       if (process.env.POE2_TRACKER_DEBUG) console.log(msg)

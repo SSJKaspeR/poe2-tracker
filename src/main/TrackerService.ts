@@ -1,4 +1,7 @@
-import { existsSync } from 'node:fs'
+import { isGearText } from '../core/clipboard/ClipboardWatcher'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { guessActiveFilter, listFilters, poe2DocumentsDirs } from '../core/filter/findLootFilter'
+import { hiddenValuable, parseFilter, type ParsedFilter } from '../core/filter/LootFilter'
 import { EventEmitter } from 'node:events'
 import { checkGear } from '../core/build/gearCheck'
 import { compareGear, impactScore, type DetailedItem } from '../core/build/targetCompare'
@@ -23,6 +26,7 @@ import type {
   BuildVersionDTO,
   GearCheckDTO,
   GuideComparisonDTO,
+  LootFilterDTO,
   ItemComparisonDTO,
   PresetDTO,
   PresetItemDTO,
@@ -71,6 +75,8 @@ export class TrackerService extends EventEmitter {
   private readonly tradeWeightCache = new Map<string, TradeWeightsDTO>()
   private refreshing: Promise<void> | null = null
   private stopped = false
+  private readonly filterDirs: string[]
+  private parsedFilter: { path: string; mtime: number; filter: ParsedFilter } | null = null
 
   constructor(opts: {
     dbPath: string
@@ -79,8 +85,11 @@ export class TrackerService extends EventEmitter {
     pricing?: PoeNinjaClient
     /** Sent to poe.ninja, e.g. "PoE2Tracker/0.1.0 (+https://github.com/…)". */
     userAgent?: string
+    /** Where PoE 2 keeps loot filters (Documents/My Games/Path of Exile 2…). */
+    filterDirs?: string[]
   }) {
     super()
+    this.filterDirs = opts.filterDirs ?? []
     this.database = new AppDatabase(opts.dbPath)
     this.runs = new RunRepository(this.database.db)
     this.builds = new BuildRepository(this.database.db)
@@ -267,6 +276,7 @@ export class TrackerService extends EventEmitter {
   /** Item copied in game: compare it and push the result to the UI. */
   async onCopiedItem(itemText: string): Promise<void> {
     if (this.getSetting('clipboardWatch') === '0') return
+    if (!isGearText(itemText)) return // currency, waystones… (e.g. price checked with Exiled Exchange 2)
     this.emit('item-compared', await this.compareItem(itemText))
   }
 
@@ -290,6 +300,66 @@ export class TrackerService extends EventEmitter {
     }))
     this.emitStatus()
     return res
+  }
+
+  // ── Loot filter ────────────────────────────────────────────────────────────
+
+  /**
+   * The player's loot filter and the priced items it hides (value never seen on the ground).
+   * Only currency-like items (named by base type) are checked: uniques are matched by base,
+   * which poe.ninja names don't give.
+   */
+  lootFilter(minExalted = 1): LootFilterDTO {
+    const chosen = this.getSetting('lootFilterPath')
+    const candidates = listFilters(this.filterDirs).map((c) => ({ path: c.path, name: c.name, online: c.online }))
+    const path = chosen && existsSync(chosen) ? chosen : guessActiveFilter(this.filterDirs)
+    const areaLevel = this.runs.recent(1)[0]?.areaLevel ?? 80
+    const exalted = this.priceBook.get('exalted')
+    const exPerDiv = exalted && exalted.value > 0 ? 1 / exalted.value : null
+    const base: LootFilterDTO = {
+      path,
+      auto: !(chosen && existsSync(chosen)),
+      candidates,
+      info: null,
+      areaLevel,
+      minExalted,
+      hidden: [],
+      error: null
+    }
+    if (!path) return { ...base, error: 'No loot filter found. Choose your .filter file.' }
+    try {
+      const filter = this.loadFilter(path)
+      const minValue = exPerDiv ? minExalted / exPerDiv : Number.POSITIVE_INFINITY
+      const priced = this.priceBook.all().filter((p) => p.kind === 'exchange').map((p) => ({ name: p.name, value: p.value }))
+      const hidden = hiddenValuable(filter, priced, { areaLevel, minValue }).map((h) => ({
+        name: h.name,
+        valueDivine: h.value,
+        valueExalted: exPerDiv ? h.value * exPerDiv : null,
+        line: h.line,
+        uncertain: h.uncertain
+      }))
+      return {
+        ...base,
+        info: { ...filter.info, blocks: filter.blocks.length },
+        hidden,
+        error: exPerDiv ? null : 'Prices not loaded yet'
+      }
+    } catch (err) {
+      return { ...base, error: `Can't read the filter: ${err instanceof Error ? err.message : String(err)}` }
+    }
+  }
+
+  setLootFilter(path: string | null): void {
+    this.setSetting('lootFilterPath', path ?? '')
+    this.parsedFilter = null
+  }
+
+  private loadFilter(path: string): ParsedFilter {
+    const mtime = statSync(path).mtimeMs
+    if (this.parsedFilter?.path === path && this.parsedFilter.mtime === mtime) return this.parsedFilter.filter
+    const filter = parseFilter(readFileSync(path, 'utf8'))
+    this.parsedFilter = { path, mtime, filter }
+    return filter
   }
 
   versionPerformance(): VersionPerformanceDTO[] {

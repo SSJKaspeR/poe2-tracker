@@ -67,6 +67,11 @@ export class PriceBook {
     return this.byName.get(normalise(name))
   }
 
+  /** Every price, one entry per poe.ninja id. */
+  all(): Price[] {
+    return [...this.byId.values()]
+  }
+
   /** Simple contains search for the item picker. */
   search(query: string, limit = 20): Price[] {
     const q = normalise(query)

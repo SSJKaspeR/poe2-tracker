@@ -26,6 +26,9 @@ const api: TrackerApi = {
   getTradeWeights: (slot) => ipcRenderer.invoke('trade:weights', slot),
   previewTradeItem: (slot, mods) => ipcRenderer.invoke('trade:preview', slot, mods),
   getRunsDetailed: (sinceDays) => ipcRenderer.invoke('runs:detailed', sinceDays),
+  getLootFilter: (minExalted) => ipcRenderer.invoke('filter:get', minExalted),
+  setLootFilter: (path) => ipcRenderer.invoke('filter:set', path),
+  browseLootFilter: () => ipcRenderer.invoke('filter:browse'),
   setClipboardWatch: (on) => ipcRenderer.invoke('clipboard:set-watch', on),
   onItemCompared: (listener) => subscribe<Result<ItemComparisonDTO>>('item:compared', listener),
 

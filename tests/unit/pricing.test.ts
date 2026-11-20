@@ -30,8 +30,8 @@ function fakeHttp(data: unknown) {
 describe('toPrices', () => {
   it('joins values with names and includes the primary currency', () => {
     const prices = toPrices(SAMPLE)
-    expect(prices).toContainEqual({ id: 'alch', name: 'Orb of Alchemy', value: 0.006875, currency: 'divine' })
-    expect(prices).toContainEqual({ id: 'divine', name: 'Divine Orb', value: 1, currency: 'divine' })
+    expect(prices).toContainEqual({ id: 'alch', name: 'Orb of Alchemy', value: 0.006875, currency: 'divine', kind: 'exchange' })
+    expect(prices).toContainEqual({ id: 'divine', name: 'Divine Orb', value: 1, currency: 'divine', kind: 'exchange' })
   })
 })
 

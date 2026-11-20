@@ -80,6 +80,8 @@ export interface Price {
   /** Value expressed in the primary currency (usually Divine Orb). */
   value: number
   currency: string
+  /** exchange: currency-like stackables (named by base type); item: uniques and tablets. */
+  kind?: 'exchange' | 'item'
 }
 
 export interface PoeNinjaClientOptions {
@@ -295,14 +297,14 @@ export function toStashPrices(o: StashOverview): Price[] {
   for (const l of o.lines ?? []) {
     if (typeof l.primaryValue !== 'number' || !Number.isFinite(l.primaryValue)) continue
     const name = l.variant ? `${l.name} (${l.variant})` : l.name
-    out.push({ id: l.detailsId, name, value: l.primaryValue, currency })
+    out.push({ id: l.detailsId, name, value: l.primaryValue, currency, kind: 'item' })
     if (l.variant) {
       const prev = cheapestByName.get(l.name)
       if (!prev || l.primaryValue < prev.primaryValue) cheapestByName.set(l.name, l)
     }
   }
   for (const [name, l] of cheapestByName) {
-    out.push({ id: `${l.detailsId}#any`, name, value: l.primaryValue, currency })
+    out.push({ id: `${l.detailsId}#any`, name, value: l.primaryValue, currency, kind: 'item' })
   }
   return out
 }
@@ -315,11 +317,11 @@ export function toPrices(o: ExchangeOverview): Price[] {
   const out: Price[] = []
   for (const line of o.lines ?? []) {
     if (typeof line.primaryValue !== 'number' || !Number.isFinite(line.primaryValue)) continue
-    out.push({ id: line.id, name: names.get(line.id) ?? line.id, value: line.primaryValue, currency })
+    out.push({ id: line.id, name: names.get(line.id) ?? line.id, value: line.primaryValue, currency, kind: 'exchange' })
   }
   // The primary currency itself is worth exactly 1 of itself.
   if (!out.some((p) => p.id === currency)) {
-    out.push({ id: currency, name: names.get(currency) ?? currency, value: 1, currency })
+    out.push({ id: currency, name: names.get(currency) ?? currency, value: 1, currency, kind: 'exchange' })
   }
   return out
 }

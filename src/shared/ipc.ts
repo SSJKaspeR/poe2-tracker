@@ -322,6 +322,12 @@ export interface TrackerApi {
   addLoot(runId: string, item: { label: string; itemId?: string; quantity: number; manualValue?: number }): Promise<RunLinesDTO>
   removeLine(runId: string, kind: 'loot' | 'investment', lineId: number): Promise<RunLinesDTO>
   refreshPrices(): Promise<AppStatus>
+  /** Loot filter analysis: priced items the player's filter hides. */
+  getLootFilter(minExalted?: number): Promise<LootFilterDTO>
+  /** Use this filter file (null = automatic). */
+  setLootFilter(path: string | null): Promise<LootFilterDTO>
+  /** File dialog to pick a .filter file. */
+  browseLootFilter(): Promise<LootFilterDTO>
 
   // Sessions
   startSession(s: StartSessionDTO): Promise<AppStatus>
@@ -337,3 +343,19 @@ export interface TrackerApi {
 
   onStatusChanged(listener: (status: AppStatus) => void): () => void
 }
+
+export interface LootFilterDTO {
+  /** Filter analysed (null when none was found). */
+  path: string | null
+  /** true when guessed (in-game selection or most recent file), false when chosen by the player. */
+  auto: boolean
+  candidates: { path: string; name: string; online: boolean }[]
+  info: { title: string | null; version: string | null; type: string | null; blocks: number } | null
+  /** Area level used to evaluate the filter (last map played). */
+  areaLevel: number
+  minExalted: number
+  /** Priced items the filter hides, most valuable first. */
+  hidden: { name: string; valueDivine: number; valueExalted: number | null; line: number | null; uncertain: boolean }[]
+  error: string | null
+}
+

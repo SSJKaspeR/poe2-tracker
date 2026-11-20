@@ -42,3 +42,18 @@ describe('ClipboardWatcher', () => {
     expect(seen).toHaveLength(1)
   })
 })
+
+describe('gear filter (coexists with price checkers like Exiled Exchange 2)', () => {
+  it('keeps equipment and ignores currency, waystones and gems', async () => {
+    const { isGearText, itemClass } = await import('@core/clipboard/ClipboardWatcher')
+    const item = (cls: string) => `Item Class: ${cls}\r\nRarity: Rare\r\nX\r\n--------\r\nY`
+    expect(itemClass(item('Body Armours'))).toBe('Body Armours')
+    for (const c of ['Body Armours', 'Rings', 'Quarterstaves', 'Crossbows', 'Foci', 'Life Flasks', 'Charms', 'Jewels', 'Two Hand Swords']) {
+      expect(isGearText(item(c))).toBe(true)
+    }
+    for (const c of ['Stackable Currency', 'Waystones', 'Tablet', 'Skill Gems', 'Support Gems', 'Socketable', 'Omen', 'Relics']) {
+      expect(isGearText(item(c))).toBe(false)
+    }
+    expect(isGearText('Body Armours')).toBe(false)
+  })
+})

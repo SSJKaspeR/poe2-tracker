@@ -3,7 +3,7 @@
  * real PoB engine, a real SQLite file, a real Client.txt on disk and a fake
  * poe.ninja. Each test starts from a fresh data folder unless it says otherwise.
  */
-import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { AxiosInstance } from 'axios'
@@ -45,8 +45,14 @@ function fakeNinja(opts: { leaguesFail?: () => boolean; cachePath?: string } = {
         return {
           data: {
             core: { primary: 'divine', items: [{ id: 'divine', name: 'Divine Orb' }] },
-            lines: [{ id: 'exalted', primaryValue: 0.002 }],
-            items: [{ id: 'exalted', name: 'Exalted Orb' }]
+            lines: [
+              { id: 'exalted', primaryValue: 0.002 },
+              { id: 'regal', primaryValue: 0.004 }
+            ],
+            items: [
+              { id: 'exalted', name: 'Exalted Orb' },
+              { id: 'regal', name: 'Regal Orb' }
+            ]
           }
         }
       }
@@ -83,14 +89,18 @@ function folder() {
   return { dir, db: join(dir, 'app.db'), log }
 }
 
-async function startService(f: { db: string; log: string }, opts: { useLogEnv?: boolean; ninja?: ReturnType<typeof fakeNinja> } = {}) {
+async function startService(
+  f: { db: string; log: string },
+  opts: { useLogEnv?: boolean; ninja?: ReturnType<typeof fakeNinja>; filterDirs?: string[] } = {}
+) {
   if (opts.useLogEnv !== false) process.env.POE2_CLIENT_LOG = f.log
   else delete process.env.POE2_CLIENT_LOG
   const ninja = opts.ninja ?? fakeNinja()
   const svc = new TrackerService({
     dbPath: f.db,
     pob: { ...paths!, bridgeScript: resolve(ROOT, 'resources', 'pob', 'bridge.lua') },
-    pricing: ninja.client
+    pricing: ninja.client,
+    filterDirs: opts.filterDirs
   })
   services.push(svc)
   await svc.start()
@@ -260,9 +270,13 @@ describe.skipIf(!paths)('TrackerService (whole app logic, real engine)', () => {
     await svc.onCopiedItem(ITEM)
     expect(seen).toHaveLength(1)
     expect(svc.status().clipboardWatch).toBe(false)
-    // A bad copy is reported, not thrown.
     svc.setClipboardWatch(true)
+    // Non-gear copies (e.g. a price check with Exiled Exchange 2) are ignored.
+    await svc.onCopiedItem('Item Class: Stackable Currency\nRarity: Currency\nExalted Orb\n--------\nStack Size: 1/20')
     await svc.onCopiedItem('Item Class: Nope\nRarity: Rare\nWhat\nNot A Base')
+    expect(seen).toHaveLength(1)
+    // A bad gear copy is reported, not thrown.
+    await svc.onCopiedItem('Item Class: Body Armours\nRarity: Rare\nWhat\nNot A Base')
     expect(seen[1]).toMatchObject({ ok: false })
   })
 
@@ -340,6 +354,34 @@ describe.skipIf(!paths)('TrackerService (whole app logic, real engine)', () => {
     ninja.clock.now += 11 * 60_000
     await svc.refreshPrices()
     expect(svc.status().league).toBe('Test League')
+  })
+})
+
+describe.skipIf(!paths)('TrackerService loot filter', () => {
+  it("finds the player's filter and lists priced items it hides", async () => {
+    const f = folder()
+    const filters = join(f.dir, 'Path of Exile 2')
+    mkdirSync(filters)
+    copyFileSync(resolve(ROOT, 'tests/fixtures/filters/neversink-6-uber-plus-strict.filter'), join(filters, 'NeverSink Uber Plus.filter'))
+    copyFileSync(resolve(ROOT, 'tests/fixtures/filters/neversink-3-strict.filter'), join(filters, 'NeverSink Strict.filter'))
+    writeFileSync(join(filters, 'poe2_production_Config.ini'), 'item_filter=NeverSink Uber Plus.filter\n')
+    const svc = await startService(f, { filterDirs: [filters] })
+
+    const auto = svc.lootFilter(1)
+    expect(auto).toMatchObject({ auto: true, error: null, info: { type: '6-UBER-PLUS-STRICT' } })
+    expect(auto.candidates).toHaveLength(2)
+    expect(auto.hidden).toEqual([expect.objectContaining({ name: 'Regal Orb', valueExalted: 2, uncertain: false })])
+    expect(svc.lootFilter(5).hidden).toEqual([]) // threshold
+
+    svc.setLootFilter(join(filters, 'NeverSink Strict.filter'))
+    expect(svc.lootFilter(1)).toMatchObject({ auto: false, hidden: [], info: { type: '3-STRICT' } })
+    svc.setLootFilter(null)
+    expect(svc.lootFilter(1).auto).toBe(true)
+  })
+
+  it('says so when no filter is found', async () => {
+    const svc = await startService(folder(), { filterDirs: [] })
+    expect(svc.lootFilter().error).toMatch(/No loot filter found/)
   })
 })
 

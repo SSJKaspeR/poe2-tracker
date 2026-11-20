@@ -28,8 +28,24 @@ export function App() {
     return window.tracker.onStatusChanged(setStatus)
   }, [refresh, setStatus])
 
-  // An item copied in game is shown on the Dashboard, whatever tab is open.
-  useEffect(() => window.tracker.onItemCompared(() => setTab('dashboard')), [])
+  // An item copied in game is compared on the Dashboard. Price checkers (Exiled Exchange 2)
+  // copy items too, so we never yank the user away from another tab: a notice offers to go there.
+  const [pendingItem, setPendingItem] = useState<string | null>(null)
+  useEffect(
+    () =>
+      window.tracker.onItemCompared((res) => {
+        if (!res.ok) return
+        setTab((current) => {
+          if (current !== 'dashboard') setPendingItem(res.value.slot ?? 'item')
+          return current
+        })
+      }),
+    []
+  )
+  const openTab = (t: Tab) => {
+    setTab(t)
+    if (t === 'dashboard') setPendingItem(null)
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -46,15 +62,27 @@ export function App() {
                 className={`rounded-md px-3 py-1.5 text-sm font-medium ${
                   tab === t.id ? 'bg-stone-800 text-stone-100' : 'text-stone-400 hover:text-stone-200'
                 }`}
-                onClick={() => setTab(t.id)}
+                onClick={() => openTab(t.id)}
               >
                 {t.label}
+                {t.id === 'dashboard' && pendingItem && (
+                  <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-ember-400" aria-label="new item compared" />
+                )}
               </button>
             ))}
           </nav>
         </div>
         <HeaderStatus />
       </header>
+      {pendingItem && tab !== 'dashboard' && (
+        <div className="flex items-center justify-between border-b border-stone-800 bg-stone-900 px-6 py-2 text-sm text-stone-300">
+          <span>New item compared ({pendingItem}).</span>
+          <span className="flex gap-2">
+            <Button onClick={() => openTab('dashboard')}>View comparison</Button>
+            <Button onClick={() => setPendingItem(null)}>Dismiss</Button>
+          </span>
+        </div>
+      )}
       {status && (
         // Tabs stay mounted (hidden) so live panels keep their state and listeners.
         <main className="flex-1 overflow-auto p-6">

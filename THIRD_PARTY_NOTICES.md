@@ -26,6 +26,14 @@ PoE2 Tracker ships the following third-party software in `resources/engine/`.
 
 - `vcruntime140*.dll`, `msvcp140.dll`, redistributed as permitted by the Visual Studio redistribution terms.
 
+## NeverSink's filter for PoE 2 (test fixtures only)
+
+Two filter files (3-STRICT, 6-UBER-PLUS-STRICT, version 0.10.4) from
+https://github.com/NeverSinkDev/NeverSink-Filter-for-PoE2 are used, unmodified, as test data in
+`tests/fixtures/filters/`. MIT License, Copyright (c) 2026 NeverSink — see
+`tests/fixtures/filters/NEVERSINK-LICENSE`. They are not shipped with the app: the app only
+reads the player's own filter.
+
 ## Electron, React and npm dependencies
 
 - Licences listed in each package; Electron's `LICENSES.chromium.html` ships with the app.
