@@ -21,6 +21,7 @@
     "electron.vite.config.ts",
     "vitest.config.ts",
     "vitest.pob.config.ts",
+    "vitest.smoke.config.ts",
     "vitest.live.config.ts",
     "src/main/**/*",
     "src/preload/**/*",

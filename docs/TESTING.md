@@ -1,5 +1,17 @@
 # Testing
 
+## Which tests to run
+
+| When | Command | Time (Linux) | What |
+|---|---|---|---|
+| Every change | `npm run check` | ~15 s | typecheck, unit tests (~100), smoke test on the real PoB engine (`tests/smoke`: start, Client.txt map, build import, item comparison, loot filter) |
+| Big changes, before a release | `npm run check:full` | ~3 min | + every engine/service test (`tests/pob`), app build, end-to-end test of the whole app |
+
+CI follows the same rule: every push runs the quick check on Linux. The full battery (Linux
+`full` job + Windows build with installer and e2e on the installed app) runs on pull requests,
+release tags `v*`, by hand (Actions → Run workflow), or when the commit message contains `[full]`.
+
+
 | Suite | Command | What it covers | Where it runs |
 |---|---|---|---|
 | Unit | `npm test` | Pure logic, no engine (77 tests) | Linux CI, Windows CI |

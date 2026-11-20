@@ -42,13 +42,13 @@ Requirements: Node 22+, git, a C compiler and make (for the PoB engine).
 npm install
 npm run build:engine   # calculation engine pack: Path of Building (pinned in engine.json) + LuaJIT
 npm run dev         # start the app
-npm test            # unit tests
-npm run test:pob    # integration tests against the real PoB engine
-npm run build && npm run test:e2e   # end-to-end test of the built app
+npm run check       # quick check for every change (~15 s): typecheck, unit tests, smoke test
+npm run check:full  # full battery for big changes / releases (~3 min): + engine tests, e2e
 npm run dist:win    # Windows installer (on Windows, from a Developer Command Prompt for the engine)
 ```
 
-Set `POE2_CLIENT_LOG=/path/to/Client.txt` to point the app at a specific log file.
+Set `POE2_CLIENT_LOG=/path/to/Client.txt` to point the app at a specific log file, and
+`POE2_FILTER_DIR` at a folder holding loot filters. Details: [docs/TESTING.md](docs/TESTING.md).
 
 ### Layout
 

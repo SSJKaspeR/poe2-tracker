@@ -1,11 +1,16 @@
 name: CI
+
+# Every push: the quick check (typecheck, unit tests, smoke test on the real engine).
+# The full battery (engine/service tests, end-to-end app test) runs on pull requests,
+# by hand (Actions → CI → Run workflow) or when the commit message contains [full].
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
-  test:
+  quick:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,8 +19,25 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
+      - name: Cache engine sources
+        uses: actions/cache@v4
+        with:
+          path: .pob/cache
+          key: engine-src-${{ runner.os }}-${{ hashFiles('engine.json') }}
+      - run: npm run build:engine
+      - run: npm run check
+
+  full:
+    if: github.event_name != 'push' || contains(github.event.head_commit.message, '[full]')
+    needs: quick
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
       - name: Cache engine sources
         uses: actions/cache@v4
         with:
