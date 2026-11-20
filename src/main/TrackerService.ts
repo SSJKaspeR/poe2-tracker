@@ -35,6 +35,8 @@ import type {
   SessionLineDTO,
   SessionSummaryDTO,
   StartSessionDTO,
+  TradePreviewDTO,
+  TradeWeightsDTO,
   VersionPerformanceDTO
 } from '../shared/ipc'
 
@@ -66,6 +68,7 @@ export class TrackerService extends EventEmitter {
   private pobQueue: Promise<unknown> = Promise.resolve()
   /** Engine process generation whose build is the player's (reloaded after a crash). */
   private loadedGeneration = -1
+  private readonly tradeWeightCache = new Map<string, TradeWeightsDTO>()
   private stopped = false
 
   constructor(opts: {
@@ -443,6 +446,28 @@ export class TrackerService extends EventEmitter {
         return { guideName: guide.name, importedAt: guide.importedAt, guideInfo: guide.info, stats, slots, tree, skills }
       })
     )
+  }
+
+  // ── Trade upgrade search ──────────────────────────────────────────────────
+
+  /** PoB weights per stat for upgrading this slot (cached per build version and slot). */
+  async tradeWeights(slot: string): Promise<Result<TradeWeightsDTO>> {
+    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    if (!this.activeBuild()) return { ok: false, error: 'Import your build first' }
+    const key = `${this.activeVersionId()}|${slot}`
+    const cached = this.tradeWeightCache.get(key)
+    if (cached) return { ok: true, value: cached }
+    await this.pobReady
+    const res = await wrap(() => this.withPob(() => this.pob!.tradeWeights(slot)))
+    if (res.ok) this.tradeWeightCache.set(key, res.value)
+    return res
+  }
+
+  async tradePreview(slot: string, mods: { tradeId: string; text: string; value: number }[]): Promise<Result<TradePreviewDTO>> {
+    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    await this.pobReady
+    const res = await wrap(() => this.withPob(() => this.pob!.tradePreview(slot, mods)))
+    return res.ok ? { ok: true, value: { slot: res.value.slot, lines: res.value.lines, diff: res.value.diff } } : res
   }
 
   runsDetailed(sinceDays: number | null): RunDetailDTO[] {

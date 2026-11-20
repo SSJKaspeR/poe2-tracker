@@ -2,8 +2,8 @@
 
 | Suite | Command | What it covers | Where it runs |
 |---|---|---|---|
-| Unit | `npm test` | Pure logic, no engine (71 tests) | Linux CI, Windows CI |
-| Engine + service | `npm run test:pob` | Real Path of Building engine, the whole service with a real database and Client.txt, robustness (27 tests) | Linux CI, Windows CI (Windows engine) |
+| Unit | `npm test` | Pure logic, no engine (77 tests) | Linux CI, Windows CI |
+| Engine + service | `npm run test:pob` | Real Path of Building engine, the whole service with a real database and Client.txt, robustness (29 tests) | Linux CI, Windows CI (Windows engine) |
 | End-to-end | `npm run build && npm run test:e2e` | The built app driven like a player: a full session | Linux CI (dev build), Windows CI (**installed app**) |
 | Live | `npm run test:live` | Every poe.ninja category against the real API | Manual (external service) |
 
@@ -31,6 +31,7 @@
 | "I equipped it" → new version, real quality kept | — | bridge, service | ✓ |
 | Versions linked to maps, results per version | BuildRepository | service | ✓ |
 | Gear check | gearCheck | bridge, service | ✓ |
+| Trade upgrade search: PoB weights per slot, required / excluded stats, max price, preview, trade URL, resistance loss warning | tradeQuery | bridge, service | ✓ (URL checked) |
 | Guide: gear, tree, gems, unique prices | targetCompare, treeGemsCompare | bridge, service | ✓ |
 | Engine queue (guide reading never swaps the player build) | — | service | — |
 | Engine crash → restart with the player build | — | service | — |

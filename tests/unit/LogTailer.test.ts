@@ -91,3 +91,4 @@ describe('LogTailer resume', () => {
     expect(lines).toEqual(['new game'])
   })
 })
+

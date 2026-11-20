@@ -78,6 +78,8 @@ function registerIpc(svc: TrackerService): void {
   ipcMain.handle('guide:set', (_e, code: string, name?: string) => svc.setGuideBuild(code, name))
   ipcMain.handle('guide:clear', () => svc.clearGuideBuild())
   ipcMain.handle('guide:compare', () => svc.guideComparison())
+  ipcMain.handle('trade:weights', (_e, slot: string) => svc.tradeWeights(slot))
+  ipcMain.handle('trade:preview', (_e, slot: string, mods) => svc.tradePreview(slot, mods))
   ipcMain.handle('runs:detailed', (_e, sinceDays: number | null) => svc.runsDetailed(sinceDays))
   ipcMain.handle('clipboard:set-watch', (_e, on: boolean) => {
     svc.setClipboardWatch(on)

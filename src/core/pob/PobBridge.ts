@@ -60,6 +60,14 @@ export interface StatChange {
   delta: number
 }
 
+export interface TradeWeights {
+  slot: string
+  category?: string
+  minWeight?: number
+  base?: string
+  weights: { tradeId: string; text: string; weight: number; score: number; typical: number }[]
+}
+
 export interface ItemComparison {
   slot: string
   item: { name: string; rarity: string; base?: string }
@@ -214,6 +222,20 @@ export class PobBridge {
 
   skillsDetail(): Promise<{ groups: SkillGroup[] }> {
     return this.request('skills_detail')
+  }
+
+  /** PoB's trade weights for upgrading the item in this slot. */
+  tradeWeights(slot: string): Promise<TradeWeights> {
+    return this.request('trade_weights', { slot }, 120_000)
+  }
+
+  /** What an item with these stats would change in this slot. */
+  tradePreview(
+    slot: string,
+    mods: { tradeId: string; text: string; value: number }[],
+    base?: string
+  ): Promise<{ slot: string; lines: string[]; before: StatMap; after: StatMap; diff: Record<string, StatChange> }> {
+    return this.request('trade_preview', { slot, mods, base })
   }
 
   compareNode(nodeId: number): Promise<{ node: { id: number; name: string } } & Omit<ItemComparison, 'slot' | 'item'>> {

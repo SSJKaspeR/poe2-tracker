@@ -29,6 +29,7 @@ Free, open-source, local-first desktop tracker for **Path of Exile 2**.
 | Maps tab: history by period, per-run detail, stats by map | ✅ |
 | Build tab: full stat sheet, equipment, every change with its stat diff and its impact on your maps | ✅ |
 | Guide build comparison: paste the PoB of the build you follow → stats vs guide, slot-by-slot missing/lower mods, what each guide item would give you (PoB), price of missing uniques; passive tree (keystones/notables to take, rated by PoB) and skill gems (levels, quality, missing supports) | ✅ |
+| Trade upgrade search: PoB ranks the stats that help your build most for a slot; force / exclude stats, min values, max price; preview of the gain; opens a pre-filled search on the official trade site (no trade API calls) | ✅ |
 | Gear check: empty rune sockets, sockets still possible, open modifiers, missing quality, outdated bases, low item level | ✅ |
 | Best next upgrade, trade search for rares, AI explanations | 🚧 |
 | Windows installer (built and tested on Windows by GitHub Actions) | ✅ first version |

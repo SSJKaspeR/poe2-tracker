@@ -42,7 +42,8 @@ describe('without the calculation engine', () => {
     const p = (n: number) => String(n).padStart(2, '0')
     const stamp = `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
     appendFileSync(log, `${stamp} 1 a [INFO Client 1] Generating level 80 area "MapCrypt" with seed 5\n`)
-    const end = Date.now() + 5000
+    // Generous deadline: other test files load the engine in parallel and slow the file watcher.
+    const end = Date.now() + 20_000
     while (!svc.status().currentRun && Date.now() < end) await new Promise((r) => setTimeout(r, 50))
     expect(svc.status().currentRun?.areaId).toBe('MapCrypt')
   })

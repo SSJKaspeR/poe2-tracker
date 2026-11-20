@@ -56,6 +56,10 @@ export class LogTailer {
       awaitWriteFinish: false
     })
     this.watcher.on('change', () => this.schedule())
+    // Lines written while the watcher was starting produce no 'change' event:
+    // read them once it is ready.
+    await new Promise<void>((resolve) => this.watcher!.once('ready', () => resolve()))
+    await this.schedule()
   }
 
   async stop(): Promise<void> {

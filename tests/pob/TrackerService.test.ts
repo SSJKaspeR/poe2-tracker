@@ -320,6 +320,32 @@ describe.skipIf(!paths)('TrackerService (whole app logic, real engine)', () => {
   })
 })
 
+describe.skipIf(!paths)('TrackerService trade upgrade search', () => {
+  it('weights per slot (cached per build version), preview, and a trade URL for the league', async () => {
+    const svc = await startService(folder())
+    expect(await svc.tradeWeights('Body Armour')).toMatchObject({ ok: false, error: 'Import your build first' })
+    unwrap(await svc.importBuild(fx('build-level1.pobcode'), { newBuild: false }))
+    unwrap(await svc.equipItem(ITEM))
+    const t0 = performance.now()
+    const w = unwrap(await svc.tradeWeights('Body Armour'))
+    const first = performance.now() - t0
+    const t1 = performance.now()
+    expect(unwrap(await svc.tradeWeights('Body Armour'))).toBe(w) // cached
+    expect(performance.now() - t1).toBeLessThan(first)
+
+    const { defaultChoices, previewMods, tradeSearchUrl } = await import('@shared/trade')
+    const choices = defaultChoices(w.weights)
+    const preview = unwrap(await svc.tradePreview('Body Armour', previewMods(choices)))
+    expect(preview.lines.length).toBeGreaterThan(0)
+    const url = tradeSearchUrl(choices, { league: svc.status().league!, category: w.category, minWeight: w.minWeight })
+    expect(url).toMatch(/^https:\/\/www\.pathofexile\.com\/trade2\/search\/poe2\/Test%20League\?q=/)
+
+    // A new build version gets fresh weights.
+    unwrap(await svc.equipItem(ITEM.replace('+90 to maximum Life', '+10 to maximum Life')))
+    expect(unwrap(await svc.tradeWeights('Body Armour'))).not.toBe(w)
+  })
+})
+
 describe.skipIf(!paths)('TrackerService after a restart', () => {
   it('keeps the build, settings, strategies and active session; does not re-create past runs', async () => {
     const f = folder()

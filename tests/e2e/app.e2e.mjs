@@ -152,6 +152,38 @@ try {
   await win.getByText(/Gear check: .*easy win/).waitFor({ timeout: 5_000 })
   await win.screenshot({ path: join(SHOTS, 'screenshot-build.png') })
 
+  step('Build tab: find an upgrade on trade')
+  await app.evaluate(({ shell }) => {
+    globalThis.__opened = []
+    shell.openExternal = async (u) => {
+      globalThis.__opened.push(u)
+    }
+  })
+  await win.getByRole('button', { name: 'Find an upgrade for Body Armour' }).click()
+  const trade = win.locator('section', { hasText: 'Find an upgrade on trade' })
+  await trade.getByText('to maximum Life').first().waitFor({ timeout: 30_000 })
+  const lifeRow = trade.getByRole('row', { name: /to maximum Life/ }).first()
+  await lifeRow.getByRole('radio', { name: 'Must have' }).click()
+  await lifeRow.getByLabel(/Minimum for/).fill('100')
+  await trade.getByLabel('Max price').fill('3')
+  await trade.getByText(/would give you \(PoB\)/).waitFor({ timeout: 15_000 })
+  // The current item gives +40% fire res: losing it is flagged.
+  await trade.getByText(/Fire res would drop to/).waitFor({ timeout: 5_000 })
+  await trade.getByRole('button', { name: /Show all \d+ stats/ }).click()
+  await trade.getByRole('button', { name: 'Open trade search' }).click()
+  await win.waitForTimeout(500)
+  const opened = await app.evaluate(() => globalThis.__opened)
+  const tradeUrl = opened.at(-1) ?? ''
+  if (!tradeUrl.startsWith('https://www.pathofexile.com/trade2/search/poe2/')) fail(`trade url: ${tradeUrl}`)
+  const tq = JSON.parse(decodeURIComponent(tradeUrl.split('?q=')[1] ?? '{}'))
+  const and = tq.query?.stats?.find((x) => x.type === 'and')
+  if (!and || and.filters[0]?.value?.min !== 100) fail(`required life min: ${JSON.stringify(tq.query?.stats)}`)
+  if (tq.query?.filters?.type_filters?.filters?.category?.option !== 'armour.chest') fail('category')
+  if (tq.query?.filters?.trade_filters?.filters?.price?.max !== 3) fail('max price')
+  await trade.getByRole('button', { name: 'Show fewer stats' }).click()
+  await trade.getByRole('button', { name: 'Open trade search' }).scrollIntoViewIfNeeded()
+  await win.screenshot({ path: join(SHOTS, 'screenshot-trade.png') })
+
   step('Build tab: compare with a guide build')
   const guide = win.locator('section', { hasText: 'Compare with a guide build' })
   await guide.getByPlaceholder('Guide PoB code (eNrt…)').fill(GUIDE_CODE)

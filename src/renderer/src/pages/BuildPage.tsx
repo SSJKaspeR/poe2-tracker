@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { BuildSnapshotDTO, BuildVersionDTO, GearCheckDTO, StatMap } from '@shared/ipc'
 import { Card } from '../components/Card'
 import { GuideCompare } from '../components/GuideCompare'
+import { TradeUpgrade } from '../components/TradeUpgrade'
 import { formatDuration, formatStat, isImprovement, statLabel } from '../format'
 import { useMoney, useTracker } from '../store'
 
@@ -43,6 +44,7 @@ export function BuildPage() {
   const [snapshot, setSnapshot] = useState<BuildSnapshotDTO | null>(null)
   const [versions, setVersions] = useState<BuildVersionDTO[]>([])
   const [gear, setGear] = useState<GearCheckDTO[] | null>(null)
+  const [tradeSlot, setTradeSlot] = useState<string | null>(null)
   const versionId = build?.versionId ?? null
   const todayRuns = status?.today.runs
 
@@ -80,6 +82,8 @@ export function BuildPage() {
           {snapshot && <Warnings stats={snapshot.stats} />}
           {gear && <GearSummary gear={gear} />}
         </Card>
+
+        <TradeUpgrade slot={tradeSlot} slots={(snapshot?.items ?? []).map((i) => i.slot)} onSlot={setTradeSlot} />
 
         <GuideCompare />
 
@@ -123,6 +127,14 @@ export function BuildPage() {
                         {it.name}
                       </span>
                     </div>
+                    <button
+                      type="button"
+                      className="text-xs text-ember-400 hover:underline"
+                      aria-label={`Find an upgrade for ${it.slot}`}
+                      onClick={() => setTradeSlot(it.slot)}
+                    >
+                      Find upgrade on trade →
+                    </button>
                     {findings.length > 0 && (
                       <ul className="mt-0.5 space-y-0.5 text-xs">
                         {findings.map((f) => (

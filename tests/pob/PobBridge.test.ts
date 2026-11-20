@@ -130,6 +130,30 @@ Item Level: 30
     expect(r.diff).toBeTypeOf("object")
   })
 
+  it('trade upgrade: PoB weights for a slot, and a preview of chosen stats', async () => {
+    await bridge.newBuild()
+    await bridge.equipItem(BODY_ARMOUR)
+    const w = await bridge.tradeWeights('Body Armour')
+    expect(w.category).toBe('armour.chest')
+    expect(w.base).toBe('Iron Cuirass')
+    expect(w.minWeight).toBeGreaterThan(0)
+    expect(w.weights.length).toBeGreaterThan(5)
+    const life = w.weights.find((x) => x.text === '# to maximum Life')!
+    expect(life.tradeId).toMatch(/^explicit\.stat_\d+$/)
+    expect(life.typical).toBeGreaterThan(0)
+    expect(w.weights.every((x) => x.score > 0)).toBe(true)
+
+    const p = await bridge.tradePreview('Body Armour', [
+      { tradeId: life.tradeId, text: life.text, value: 150 },
+      { tradeId: 'explicit.stat_4052037485', text: '# to maximum Energy Shield (Local)', value: 50 }
+    ])
+    expect(p.lines).toEqual(['+150 to maximum Life', '+50 to maximum Energy Shield'])
+    expect(p.diff.Life!.delta).toBeGreaterThan(0)
+    expect(p.diff.EnergyShield!.delta).toBeGreaterThan(0)
+
+    await expect(bridge.tradeWeights('Helmet')).rejects.toThrow(/equip an item in Helmet first/)
+  })
+
   it('reports engine errors without crashing the bridge', async () => {
     await expect(bridge.compareItem('not an item')).rejects.toThrow()
     const r = await bridge.ping()

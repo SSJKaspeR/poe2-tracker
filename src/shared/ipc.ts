@@ -183,6 +183,21 @@ export interface GuideComparisonDTO {
   skills: { skills: GuideSkillDTO[]; extraSkills: string[] } | null
 }
 
+export interface TradeWeightsDTO {
+  slot: string
+  category?: string
+  /** PoB's suggested minimum weighted sum (≈ your current item): results are upgrades. */
+  minWeight?: number
+  base?: string
+  weights: { tradeId: string; text: string; weight: number; score: number; typical: number }[]
+}
+
+export interface TradePreviewDTO {
+  slot: string
+  lines: string[]
+  diff: Record<string, { before: number; after: number; delta: number }>
+}
+
 export interface PriceDTO {
   id: string
   name: string
@@ -281,6 +296,9 @@ export interface TrackerApi {
   setGuideBuild(code: string, name?: string): Promise<Result<GuideComparisonDTO>>
   clearGuideBuild(): Promise<void>
   getGuideComparison(): Promise<Result<GuideComparisonDTO | null>>
+  /** Trade upgrade search: PoB weights for a slot, and what chosen stats would give. */
+  getTradeWeights(slot: string): Promise<Result<TradeWeightsDTO>>
+  previewTradeItem(slot: string, mods: { tradeId: string; text: string; value: number }[]): Promise<Result<TradePreviewDTO>>
   /** Completed runs with economy; `sinceDays` null = all time. */
   getRunsDetailed(sinceDays: number | null): Promise<RunDetailDTO[]>
   setClipboardWatch(on: boolean): Promise<AppStatus>

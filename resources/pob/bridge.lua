@@ -455,6 +455,131 @@ function commands.skills_detail()
 	return { groups = groups }
 end
 
+---------------------------------------------------------------------------
+-- Trade upgrade search (PoB's own weighted trade query generator, without UI)
+---------------------------------------------------------------------------
+local DEFAULT_STAT_WEIGHTS = {
+	{ stat = "FullDPS", weightMult = 1.0 },
+	{ stat = "TotalEHP", weightMult = 0.5 },
+}
+
+local tradeGenerator
+local tradeTexts
+local tradePositive
+local function getTradeGenerator()
+	if not tradeGenerator then
+		tradeGenerator = new("TradeQueryGenerator", { itemsTab = build.itemsTab })
+		tradeTexts, tradePositive = {}, {}
+		for _, mods in pairs(tradeGenerator.modData) do
+			for _, entry in pairs(mods) do
+				if entry.tradeMod then
+					tradeTexts[entry.tradeMod.id] = entry.tradeMod.text
+					if entry.usePositiveSign then tradePositive[entry.tradeMod.id] = true end
+				end
+			end
+		end
+	end
+	-- The generator reads items from the build that is loaded now.
+	tradeGenerator.itemsTab = build.itemsTab
+	tradeGenerator.queryTab = { itemsTab = build.itemsTab }
+	return tradeGenerator
+end
+
+-- Which stats would improve this slot the most, as weights for a trade search.
+function commands.trade_weights(req)
+	requireBuild()
+	local slot = build.itemsTab.slots[req.slot]
+	if not slot then error("unknown slot " .. tostring(req.slot)) end
+	-- PoB tests stats on the equipped item's base; an empty slot would be tested on a jewel base.
+	if not slot.selItemId or slot.selItemId == 0 then
+		error("equip an item in " .. req.slot .. " first: stats are tested on its base type")
+	end
+	local gen = getTradeGenerator()
+	local query, queryErr
+	gen.requesterCallback = function(_, json, err) query, queryErr = json, err end
+	gen.requesterContext = nil
+	gen.tradeTypeIndex = 4 -- "online"
+	gen.lastMaxPrice, gen.lastMaxPriceTypeIndex, gen.lastMaxLevel = nil, nil, nil
+	gen.calcContext = {}
+	gen:StartQuery(slot, {
+		statWeights = req.statWeights or DEFAULT_STAT_WEIGHTS,
+		includeCorrupted = false,
+		includeMirrored = false,
+		includeRunes = false,
+		jewelType = "Base",
+	})
+	if not gen.calcContext.co then
+		error("no trade search possible for " .. req.slot)
+	end
+	local guard = 0
+	while gen.calcContext.co do
+		gen:OnFrame()
+		guard = guard + 1
+		if guard > 100000 then error("trade weight generation did not finish") end
+	end
+	if queryErr then error(queryErr) end
+	local parsed = json.decode(query or "{}") or {}
+	local q = parsed.query or {}
+	local category = q.filters and q.filters.type_filters and q.filters.type_filters.filters
+		and q.filters.type_filters.filters.category and q.filters.type_filters.filters.category.option
+	local minWeight = q.stats and q.stats[1] and q.stats[1].value and q.stats[1].value.min
+	local weights = {}
+	for _, w in ipairs(gen.modWeights or {}) do
+		local typical = w.weight ~= 0 and math.floor(w.meanStatDiff / w.weight + 0.5) or 0
+		weights[#weights + 1] = {
+			tradeId = w.tradeModId,
+			text = tradeTexts[w.tradeModId] or w.tradeModId,
+			weight = w.weight,
+			score = w.meanStatDiff,
+			typical = typical,
+		}
+	end
+	local current = slot.selItemId and slot.selItemId ~= 0 and build.itemsTab.items[slot.selItemId]
+	return {
+		slot = req.slot,
+		category = category,
+		minWeight = minWeight,
+		base = current and current.baseName or nil,
+		weights = weights,
+	}
+end
+
+-- Trade stat text + value → item mod line ("+# to maximum Life", 90 → "+90 to maximum Life").
+local function tradeLine(tradeId, text, value)
+	local line = text:gsub("%s*%(Local%)", "")
+	local positive = value >= 0 and (tradePositive and tradePositive[tradeId] or line:match("^#%%? to ") ~= nil)
+	if line:find("+#", 1, true) then
+		line = line:gsub("+#", (value >= 0 and "+" or "") .. tostring(value), 1)
+	elseif positive then
+		line = line:gsub("#", "+" .. tostring(value), 1)
+	else
+		line = line:gsub("#", tostring(value), 1)
+	end
+	return line
+end
+
+-- What an item with these stats would change in this slot (PoB), to preview a custom search.
+function commands.trade_preview(req)
+	requireBuild()
+	local slot = build.itemsTab.slots[req.slot]
+	if not slot then error("unknown slot " .. tostring(req.slot)) end
+	local current = slot.selItemId and slot.selItemId ~= 0 and build.itemsTab.items[slot.selItemId]
+	local base = req.base or (current and current.baseName)
+	if not base then error("no base type for " .. req.slot) end
+	local lines = { "Rarity: Rare", "Upgrade Preview", base, "--------" }
+	getTradeGenerator()
+	for _, m in ipairs(req.mods or {}) do
+		lines[#lines + 1] = tradeLine(m.tradeId, m.text, m.value)
+	end
+	local item = newItem(table.concat(lines, "\n"))
+	if not item.base then error("unrecognised base " .. tostring(base)) end
+	local calcFunc, baseOutput = build.calcsTab:GetMiscCalculator()
+	local newOutput = calcFunc({ repSlotName = req.slot, repItem = item })
+	local before = pickStats(baseOutput)
+	local after = pickStats(newOutput)
+	return { slot = req.slot, lines = { unpack(lines, 5) }, before = before, after = after, diff = diff(before, after) }
+end
+
 -- Gain from allocating a single passive node (by node id).
 function commands.compare_node(req)
 	requireBuild()
