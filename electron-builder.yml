@@ -31,4 +31,11 @@ linux:
   target:
     - target: dir
   category: Game
-publish: null
+# Updates: the app reads latest.yml from the GitHub Releases of this repo (electron-updater).
+# Builds never publish by themselves (--publish never): the Windows workflow attaches the files
+# to the release when a v* tag is pushed.
+publish:
+  provider: github
+  owner: SSJKaspeR
+  repo: poe2-tracker
+  releaseType: release

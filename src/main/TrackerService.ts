@@ -349,6 +349,15 @@ export class TrackerService extends EventEmitter {
     }
   }
 
+  /** Automatic update checks (GitHub Releases), on by default. */
+  getUpdateChecks(): boolean {
+    return this.getSetting('updateChecks') !== '0'
+  }
+
+  setUpdateChecks(on: boolean): void {
+    this.setSetting('updateChecks', on ? '1' : '0')
+  }
+
   setLootFilter(path: string | null): void {
     this.setSetting('lootFilterPath', path ?? '')
     this.parsedFilter = null

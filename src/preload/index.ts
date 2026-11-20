@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { AppStatus, ItemComparisonDTO, Result, TrackerApi } from '../shared/ipc'
+import type { AppStatus, ItemComparisonDTO, Result, TrackerApi, UpdateStateDTO } from '../shared/ipc'
 
 function subscribe<T>(channel: string, listener: (payload: T) => void): () => void {
   const handler = (_e: IpcRendererEvent, payload: T) => listener(payload)
@@ -26,6 +26,11 @@ const api: TrackerApi = {
   getTradeWeights: (slot) => ipcRenderer.invoke('trade:weights', slot),
   previewTradeItem: (slot, mods) => ipcRenderer.invoke('trade:preview', slot, mods),
   getRunsDetailed: (sinceDays) => ipcRenderer.invoke('runs:detailed', sinceDays),
+  getUpdateState: () => ipcRenderer.invoke('update:get'),
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  setAutoUpdates: (on) => ipcRenderer.invoke('update:set-auto', on),
+  onUpdateChanged: (listener) => subscribe<UpdateStateDTO>('update:changed', listener),
   getLootFilter: (minExalted) => ipcRenderer.invoke('filter:get', minExalted),
   setLootFilter: (path) => ipcRenderer.invoke('filter:set', path),
   browseLootFilter: () => ipcRenderer.invoke('filter:browse'),

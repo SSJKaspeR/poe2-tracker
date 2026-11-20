@@ -10,6 +10,9 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: write # attach the installer to the GitHub Release on v* tags
+
 jobs:
   windows:
     if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[full]')
@@ -24,6 +27,13 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Release tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} != package.json v$v"; exit 1; }
 
       # MSVC toolchain for LuaJIT (msvcbuild.bat).
       - uses: ilammy/msvc-dev-cmd@v1
@@ -50,6 +60,14 @@ jobs:
       - name: Build installer
         run: npm run dist:win
 
+      - name: Update files are generated
+        shell: bash
+        run: |
+          ls dist
+          test -f dist/latest.yml
+          test -f "dist/win-unpacked/resources/app-update.yml"
+          cat dist/latest.yml
+
       - name: End-to-end test on the packaged app
         shell: bash
         run: |
@@ -72,3 +90,16 @@ jobs:
           name: e2e-screenshots-windows
           path: e2e-screenshots/
           if-no-files-found: ignore
+
+      - name: Publish the GitHub Release (installer + update files)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls dist
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "PoE2 Tracker ${GITHUB_REF_NAME}" \
+            --notes-file RELEASE_NOTES.md \
+            dist/*.exe dist/*.exe.blockmap dist/latest.yml
+

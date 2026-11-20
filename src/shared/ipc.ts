@@ -322,6 +322,12 @@ export interface TrackerApi {
   addLoot(runId: string, item: { label: string; itemId?: string; quantity: number; manualValue?: number }): Promise<RunLinesDTO>
   removeLine(runId: string, kind: 'loot' | 'investment', lineId: number): Promise<RunLinesDTO>
   refreshPrices(): Promise<AppStatus>
+  /** App updates (GitHub Releases). null in dev. */
+  getUpdateState(): Promise<UpdateStateDTO | null>
+  checkForUpdates(): Promise<UpdateStateDTO | null>
+  installUpdate(): Promise<boolean>
+  setAutoUpdates(on: boolean): Promise<boolean>
+  onUpdateChanged(listener: (s: UpdateStateDTO) => void): () => void
   /** Loot filter analysis: priced items the player's filter hides. */
   getLootFilter(minExalted?: number): Promise<LootFilterDTO>
   /** Use this filter file (null = automatic). */
@@ -356,6 +362,16 @@ export interface LootFilterDTO {
   minExalted: number
   /** Priced items the filter hides, most valuable first. */
   hidden: { name: string; valueDivine: number; valueExalted: number | null; line: number | null; uncertain: boolean }[]
+  error: string | null
+}
+
+export interface UpdateStateDTO {
+  /** disabled: dev build, Linux, or turned off by the player. */
+  status: 'disabled' | 'idle' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error'
+  current: string
+  available: string | null
+  /** Download progress in %. */
+  progress: number | null
   error: string | null
 }
 

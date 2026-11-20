@@ -28,6 +28,7 @@
     "axios": "^1.13.0",
     "bottleneck": "^2.19.5",
     "chokidar": "^6.0.0",
+    "electron-updater": "^6.8.11",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zustand": "^5.1.0"

@@ -2,12 +2,14 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { join, resolve } from 'node:path'
 import { ClipboardWatcher } from '../core/clipboard/ClipboardWatcher'
 import { poe2DocumentsDirs } from '../core/filter/findLootFilter'
+import { Updater } from './updater'
 import { resolvePobPaths } from '../core/pob/paths'
 import { TrackerService } from './TrackerService'
 
 let mainWindow: BrowserWindow | null = null
 let service: TrackerService | null = null
 let clipboardWatcher: ClipboardWatcher | null = null
+let updater: Updater | null = null
 
 function pobOptions() {
   // Packaged: engine pack shipped in resources/engine. Dev: build/engine or .pob (npm run setup:pob).
@@ -82,6 +84,16 @@ function registerIpc(svc: TrackerService): void {
   ipcMain.handle('trade:weights', (_e, slot: string) => svc.tradeWeights(slot))
   ipcMain.handle('trade:preview', (_e, slot: string, mods) => svc.tradePreview(slot, mods))
   ipcMain.handle('runs:detailed', (_e, sinceDays: number | null) => svc.runsDetailed(sinceDays))
+  ipcMain.handle('update:get', () => updater?.status ?? null)
+  ipcMain.handle('update:install', () => updater?.installNow() ?? false)
+  ipcMain.handle('update:check', async () => {
+    await updater?.check()
+    return updater?.status ?? null
+  })
+  ipcMain.handle('update:set-auto', (_e, on: boolean) => {
+    svc.setUpdateChecks(on)
+    return on
+  })
   ipcMain.handle('filter:get', (_e, minExalted?: number) => svc.lootFilter(minExalted ?? 1))
   ipcMain.handle('filter:set', (_e, path: string | null) => {
     svc.setLootFilter(path)
@@ -182,11 +194,27 @@ app.whenReady().then(async () => {
   createWindow()
   await service.start()
   syncClipboardWatcher(service)
+  await startUpdater(service)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
+
+/** Updates from GitHub Releases: only for the installed Windows app (not dev, not tests). */
+async function startUpdater(svc: TrackerService): Promise<void> {
+  const enabled =
+    app.isPackaged && process.platform === 'win32' && !process.env.POE2_NO_UPDATES && svc.getUpdateChecks()
+  const { autoUpdater } = await import('electron-updater')
+  updater = new Updater(autoUpdater, app.getVersion(), {
+    enabled,
+    log: (msg) => {
+      if (process.env.POE2_TRACKER_DEBUG) console.log(msg)
+    }
+  })
+  updater.on('change', (state) => mainWindow?.webContents.send('update:changed', state))
+  updater.start()
+}
 
 let quitting = false
 app.on('before-quit', (event) => {
@@ -194,6 +222,7 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   quitting = true
   clipboardWatcher?.stop()
+  updater?.stop()
   void service.stop().finally(() => app.quit())
 })
 

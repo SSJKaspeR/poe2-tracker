@@ -46,7 +46,8 @@ const filterDir = join(work, 'Path of Exile 2')
 mkdirSync(filterDir)
 copyFileSync(join(ROOT, 'tests/fixtures/filters/neversink-6-uber-plus-strict.filter'), join(filterDir, 'NeverSink Uber Plus.filter'))
 writeFileSync(join(filterDir, 'poe2_production_Config.ini'), 'item_filter=NeverSink Uber Plus.filter\n')
-const env = { ...process.env, POE2_CLIENT_LOG: logPath, POE2_FILTER_DIR: filterDir }
+// No update check against GitHub during tests.
+const env = { ...process.env, POE2_CLIENT_LOG: logPath, POE2_FILTER_DIR: filterDir, POE2_NO_UPDATES: '1' }
 if (packaged) delete env.POB_ENGINE_DIR
 const app = await electron.launch({ args, env, ...(packaged ? { executablePath: packaged } : {}) })
 const win = await app.firstWindow()

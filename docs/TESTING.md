@@ -11,6 +11,18 @@ CI follows the same rule: every push runs the quick check on Linux. The full bat
 `full` job + Windows build with installer and e2e on the installed app) runs on pull requests,
 release tags `v*`, by hand (Actions → Run workflow), or when the commit message contains `[full]`.
 
+## Releasing
+
+1. `npm run check:full` (or a commit with `[full]`) is green.
+2. Bump `version` in `package.json`, update `RELEASE_NOTES.md`, commit.
+3. Push a tag `v<version>` (e.g. `git tag v0.2.0 && git push origin v0.2.0`).
+4. The Windows workflow checks that the tag matches package.json, runs the full battery, builds the
+   installer and publishes the GitHub Release with `latest.yml`. Installed apps see it within 6 hours
+   (footer: "Restart to update", or applied when the app is closed).
+
+New Path of Building release: the daily "Path of Building watch" workflow opens an issue with the steps.
+The engine ships inside the app, so engine updates reach players through app releases.
+
 
 | Suite | Command | What it covers | Where it runs |
 |---|---|---|---|

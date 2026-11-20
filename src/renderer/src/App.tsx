@@ -3,6 +3,7 @@ import { BuildPanel, ItemComparePanel } from './components/BuildPanel'
 import { Button } from './components/Card'
 import { CurrentRun, RecentRuns, RunEconomy, StatusBar } from './components/RunsPanel'
 import { SessionBar } from './components/SessionBar'
+import { UpdateNotice } from './components/UpdateNotice'
 import { StrategyPanel } from './components/StrategyPanel'
 import { BuildPage } from './pages/BuildPage'
 import { MapsPage } from './pages/MapsPage'
@@ -111,9 +112,12 @@ export function App() {
           </div>
         </main>
       )}
-      <footer className="border-t border-stone-800 px-6 py-2 text-[11px] text-stone-600">
-        Calculations by the Path of Building Community engine (MIT). Prices from poe.ninja. Not affiliated with or
-        endorsed by Grinding Gear Games.
+      <footer className="flex items-center justify-between gap-4 border-t border-stone-800 px-6 py-2 text-[11px] text-stone-600">
+        <span>
+          Calculations by the Path of Building Community engine (MIT). Prices from poe.ninja. Not affiliated with or
+          endorsed by Grinding Gear Games.
+        </span>
+        <UpdateNotice />
       </footer>
     </div>
   )
