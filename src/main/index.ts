@@ -1,7 +1,7 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { join, resolve } from 'node:path'
 import { ClipboardWatcher } from '../core/clipboard/ClipboardWatcher'
-import { resolveDevPobPaths } from '../core/pob/paths'
+import { resolvePobPaths } from '../core/pob/paths'
 import { TrackerService } from './TrackerService'
 
 let mainWindow: BrowserWindow | null = null
@@ -9,10 +9,11 @@ let service: TrackerService | null = null
 let clipboardWatcher: ClipboardWatcher | null = null
 
 function pobOptions() {
-  // Dev: engine installed by `npm run setup:pob` under <repo>/.pob.
-  // Packaged builds will ship the engine in resources/ (see docs/pob-engine.md).
-  const root = app.isPackaged ? process.resourcesPath : resolve(app.getAppPath())
-  const paths = resolveDevPobPaths(root)
+  // Packaged: engine pack shipped in resources/engine. Dev: build/engine or .pob (npm run setup:pob).
+  const paths = resolvePobPaths({
+    root: resolve(app.getAppPath()),
+    resourcesPath: app.isPackaged ? process.resourcesPath : undefined
+  })
   if (!paths) return null
   const bridgeScript = app.isPackaged
     ? join(process.resourcesPath, 'pob', 'bridge.lua')

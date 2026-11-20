@@ -20,26 +20,28 @@ Electron main ──spawn──▶ LuaJIT ─ resources/pob/bridge.lua
     `compare_item`, `compare_node`.
 - Item and node comparisons use PoB's own `GetMiscCalculator()` — the same path PoB's tooltips use.
 
-## Requirements
+## Engine pack
 
-- **LuaJIT at the commit PoB pins** (`2460b3ff…`, July 2026). PoB's code uses compound assignment (`x += 1`),
-  which older LuaJIT builds (e.g. distro packages) reject.
-- `lua-utf8` native module.
-- zlib (`libz` on Linux; `zlib1.dll`/`z.dll` on Windows — PoB's runtime ships one).
+`npm run build:engine` (scripts/build-engine-pack.mjs) builds `build/engine/`, shipped in the installer as
+`resources/engine/`:
 
-## Dev setup (Linux / macOS)
+- `pob/` — Path of Building at the release pinned in `engine.json` (currently PoE 2 `v0.23.1`), unmodified,
+  **without images** (tree art, gem icons: ≈ 340 MB the headless engine never reads). ≈ 48 MB.
+- `bin/luajit(.exe)` — LuaJIT at the commit PoB uses (supports `+=`). On Windows also `lua51.dll`, and
+  `zlib1.dll` + MSVC runtime taken from PoB's own Windows runtime.
+- `clibs/lua-utf8` — from PoB's runtime on Windows, built from source elsewhere.
 
-```bash
-npm run setup:pob     # clones PoB, builds LuaJIT + lua-utf8 into .pob/
-npm run test:pob      # integration tests against the real engine
-```
+The app looks for the engine in: `$POB_ENGINE_DIR`, `resources/engine` (installed app), `build/engine`, then `.pob`
+(`npm run setup:pob`, dev).
 
-## Windows (to do before release)
+Note: the PoE 2 repository also carries the old PoE 1 tags (`v2.x`). PoE 2 releases are `v0.x`.
 
-- Build `luajit.exe` + `lua51.dll` (same commit) and `lua-utf8.dll` in CI (GitHub Actions, `windows-latest`, MSVC).
-- Ship them with the installer under `resources/pob-runtime/`.
-- On first launch, download the PoB release zip, verify it, and extract `src/` + `runtime/lua/` to the user data folder.
-  Update it when a new PoB release is published (PoB 1.0 support will land after Dec 11).
+`bridge.lua` supports both item constructors PoB has used (`new("Item", raw)` and `new("Item"):Item(raw)`).
+
+## Updating PoB
+
+Change `pob.ref` in `engine.json`, run `npm run build:engine && npm run test:pob`. PoB 1.0 support is expected
+after December 11: a new installer will ship the updated engine (automatic engine updates: to do).
 
 ## Licence
 

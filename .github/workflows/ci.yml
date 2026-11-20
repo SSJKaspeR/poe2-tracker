@@ -16,12 +16,12 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - name: Cache PoB engine
+      - name: Cache engine sources
         uses: actions/cache@v4
         with:
-          path: .pob
-          key: pob-${{ hashFiles('scripts/setup-pob.mjs') }}
-      - run: npm run setup:pob
+          path: .pob/cache
+          key: engine-src-${{ runner.os }}-${{ hashFiles('engine.json') }}
+      - run: npm run build:engine
       - run: npm run test:pob
       - run: npm run build
       - run: xvfb-run -a npm run test:e2e

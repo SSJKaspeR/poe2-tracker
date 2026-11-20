@@ -1,10 +1,10 @@
 import { resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PobBridge } from '@core/pob/PobBridge'
-import { resolveDevPobPaths } from '@core/pob/paths'
+import { resolvePobPaths } from '@core/pob/paths'
 
 const ROOT = resolve(import.meta.dirname, '..', '..')
-const paths = resolveDevPobPaths(ROOT)
+const paths = resolvePobPaths({ root: ROOT })
 
 const BODY_ARMOUR = `Item Class: Body Armours
 Rarity: Rare

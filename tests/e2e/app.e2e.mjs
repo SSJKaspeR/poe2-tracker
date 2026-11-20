@@ -36,10 +36,15 @@ Item Level: 80
 +90 to maximum Life
 +40% to Fire Resistance`
 
-const args = [ROOT, `--user-data-dir=${join(work, 'userdata')}`]
+// E2E_EXECUTABLE=<path to the packaged app> tests the installed build instead of the dev build.
+const packaged = process.env.E2E_EXECUTABLE
+const args = [...(packaged ? [] : [ROOT]), `--user-data-dir=${join(work, 'userdata')}`]
 if (process.platform === 'linux') args.push('--no-sandbox')
 
-const app = await electron.launch({ args, env: { ...process.env, POE2_CLIENT_LOG: logPath } })
+// The packaged app must find its own engine: hide dev engine overrides.
+const env = { ...process.env, POE2_CLIENT_LOG: logPath }
+if (packaged) delete env.POB_ENGINE_DIR
+const app = await electron.launch({ args, env, ...(packaged ? { executablePath: packaged } : {}) })
 const win = await app.firstWindow()
 await win.setViewportSize({ width: 1440, height: 1000 })
 const fail = (msg) => {

@@ -16,7 +16,10 @@
     "test:pob": "vitest run --config vitest.pob.config.ts",
     "setup:pob": "node scripts/setup-pob.mjs",
     "test:e2e": "node tests/e2e/app.e2e.mjs",
-    "test:live": "vitest run --config vitest.live.config.ts"
+    "test:live": "vitest run --config vitest.live.config.ts",
+    "build:engine": "node scripts/build-engine-pack.mjs",
+    "dist:win": "npm run build && electron-builder --win --publish never",
+    "dist:linux": "npm run build && electron-builder --linux --publish never"
   },
   "dependencies": {
     "axios": "^1.13.0",
@@ -40,5 +43,6 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vitest": "^5.1.1"
-  }
+  },
+  "productName": "PoE2 Tracker"
 }

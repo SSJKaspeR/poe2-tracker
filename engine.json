@@ -1,0 +1,10 @@
+{
+  "pob": {
+    "repo": "https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2",
+    "ref": "v0.23.1"
+  },
+  "luajit": {
+    "repo": "https://github.com/LuaJIT/LuaJIT",
+    "ref": "2460b3ff93a1c955de3d62cfc825de7d68dc272e"
+  }
+}

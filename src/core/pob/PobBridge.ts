@@ -24,6 +24,8 @@ export interface PobBridgeOptions {
   bridgeScript: string
   /** Extra directories holding native Lua modules (lua-utf8). */
   luaCPath?: string[]
+  /** Directories put first in PATH (native libraries such as zlib). */
+  extraPath?: string[]
   /** Per-request timeout. Startup gets `startupTimeoutMs`. */
   requestTimeoutMs?: number
   startupTimeoutMs?: number
@@ -96,9 +98,10 @@ export class PobBridge {
       LUA_PATH: [join(runtimeLua, '?.lua'), join(runtimeLua, '?', 'init.lua'), ''].join(';') + ';',
       LUA_CPATH: [...(this.opts.luaCPath ?? []).map((d) => join(d, process.platform === 'win32' ? '?.dll' : '?.so')), ''].join(';') + ';'
     }
-    // Windows: let LuaJIT find lua51.dll / zlib next to PoB's runtime.
-    if (process.platform === 'win32') {
-      env.PATH = [join(pobDir, 'runtime'), env.PATH ?? ''].join(delimiter)
+    // Native libraries next to luajit (lua51.dll, zlib1.dll, MSVC runtime on Windows).
+    if (this.opts.extraPath?.length) {
+      const key = Object.keys(env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH'
+      env[key] = [...this.opts.extraPath, env[key] ?? ''].join(delimiter)
     }
 
     this.readyPromise = new Promise<void>((resolve, reject) => {

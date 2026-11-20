@@ -162,6 +162,15 @@ local function equippedItems()
 	return items
 end
 
+-- PoB changed its class constructors (new("Item", raw) → new("Item"):Item(raw)); support both.
+local function newItem(raw)
+	local cls = common.classes and common.classes.Item
+	if cls and rawget(cls, "Item") then
+		return new("Item"):Item(raw)
+	end
+	return new("Item", raw)
+end
+
 local function decodeBuildCode(code)
 	code = code:gsub("%s", "")
 	local raw = common.base64.decode((code:gsub("-", "+"):gsub("_", "/")))
@@ -240,7 +249,7 @@ end
 function commands.compare_item(req)
 	requireBuild()
 	assert(type(req.itemText) == "string", "itemText required")
-	local item = new("Item"):Item(req.itemText)
+	local item = newItem(req.itemText)
 	if not item.base then error("unrecognised item") end
 	item:NormaliseQuality()
 	item:BuildModList()
@@ -262,7 +271,7 @@ end
 function commands.equip_item(req)
 	requireBuild()
 	assert(type(req.itemText) == "string", "itemText required")
-	local item = new("Item"):Item(req.itemText)
+	local item = newItem(req.itemText)
 	if not item.base then error("unrecognised item") end
 	-- No NormaliseQuality here: the equipped item keeps its real quality.
 	if not item.quality then item.quality = 0 end

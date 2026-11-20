@@ -31,7 +31,7 @@ Free, open-source, local-first desktop tracker for **Path of Exile 2**.
 | Guide build comparison: paste the PoB of the build you follow → stats vs guide, slot-by-slot missing/lower mods, what each guide item would give you (PoB), price of missing uniques; passive tree (keystones/notables to take, rated by PoB) and skill gems (levels, quality, missing supports) | ✅ |
 | Gear check: empty rune sockets, sockets still possible, open modifiers, missing quality, outdated bases, low item level | ✅ |
 | Best next upgrade, trade search for rares, AI explanations | 🚧 |
-| Windows installer | 🚧 |
+| Windows installer (built and tested on Windows by GitHub Actions) | ✅ first version |
 
 ## Development
 
@@ -39,11 +39,12 @@ Requirements: Node 22+, git, a C compiler and make (for the PoB engine).
 
 ```bash
 npm install
-npm run setup:pob   # Path of Building engine (Linux/macOS for now, see docs/pob-engine.md)
+npm run build:engine   # calculation engine pack: Path of Building (pinned in engine.json) + LuaJIT
 npm run dev         # start the app
 npm test            # unit tests
 npm run test:pob    # integration tests against the real PoB engine
-npm run build && npm run test:e2e   # end-to-end smoke test of the built app
+npm run build && npm run test:e2e   # end-to-end test of the built app
+npm run dist:win    # Windows installer (on Windows, from a Developer Command Prompt for the engine)
 ```
 
 Set `POE2_CLIENT_LOG=/path/to/Client.txt` to point the app at a specific log file.

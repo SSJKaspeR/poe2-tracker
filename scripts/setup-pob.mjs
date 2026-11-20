@@ -11,7 +11,7 @@
 // with the installer (see docs/pob-engine.md).
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, copyFileSync } from 'node:fs'
+import { existsSync, mkdirSync, copyFileSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 const ROOT = resolve(import.meta.dirname, '..')
@@ -25,7 +25,7 @@ const CLIBS = join(POB_ROOT, 'clibs')
 // LuaJIT commit used by PoB's SimpleGraphic (vcpkg-ports/ports/luajit/2026-07-20_1).
 const LUAJIT_REF = '2460b3ff93a1c955de3d62cfc825de7d68dc272e'
 const POB_REPO = 'https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2'
-const POB_REF = process.env.POB_REF ?? 'dev'
+const POB_REF = process.env.POB_REF ?? JSON.parse(readFileSync(join(ROOT, 'engine.json'), 'utf8')).pob.ref
 
 function run(cmd, args, cwd) {
   console.log(`$ ${cmd} ${args.join(' ')}`)

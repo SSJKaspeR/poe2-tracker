@@ -1,0 +1,71 @@
+name: Windows build
+
+# Builds the Windows installer and runs every test on a real Windows machine,
+# including the end-to-end test against the installed (packaged) app.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # MSVC toolchain for LuaJIT (msvcbuild.bat).
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Cache engine sources
+        uses: actions/cache@v4
+        with:
+          path: .pob/cache
+          key: engine-src-${{ runner.os }}-${{ hashFiles('engine.json') }}
+
+      - name: Build engine pack (Path of Building + LuaJIT)
+        run: npm run build:engine
+
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Tests on the real PoB engine (Windows build)
+        run: npm run test:pob
+        env:
+          POB_ENGINE_DIR: ${{ github.workspace }}\build\engine
+
+      - name: Build installer
+        run: npm run dist:win
+
+      - name: End-to-end test on the packaged app
+        shell: bash
+        run: |
+          mkdir -p e2e-screenshots
+          E2E_SCREENSHOTS="$PWD/e2e-screenshots" \
+          E2E_EXECUTABLE="$PWD/dist/win-unpacked/PoE2 Tracker.exe" \
+          node tests/e2e/app.e2e.mjs
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: PoE2-Tracker-Windows-installer
+          path: dist/*.exe
+          if-no-files-found: error
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots-windows
+          path: e2e-screenshots/
+          if-no-files-found: ignore
