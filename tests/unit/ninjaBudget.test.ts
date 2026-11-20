@@ -74,7 +74,7 @@ describe('poe.ninja request budget', () => {
       clock.now += HOUR
     }
     expect(calls.length).toBeLessThanOrEqual(16 * PER_REFRESH)
-  })
+  }, 60_000) // ~1 000 queued lookups: slow on the Windows CI runner
 
   it('never sends the same request twice at the same time', async () => {
     const { client, calls } = setup()
