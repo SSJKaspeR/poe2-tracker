@@ -322,6 +322,8 @@ export interface TrackerApi {
   addLoot(runId: string, item: { label: string; itemId?: string; quantity: number; manualValue?: number }): Promise<RunLinesDTO>
   removeLine(runId: string, kind: 'loot' | 'investment', lineId: number): Promise<RunLinesDTO>
   refreshPrices(): Promise<AppStatus>
+  /** Rule-based observations on maps, bosses, economy and build, most important first. */
+  getVerdicts(): Promise<VerdictDTO[]>
   /** App updates (GitHub Releases). null in dev. */
   getUpdateState(): Promise<UpdateStateDTO | null>
   checkForUpdates(): Promise<UpdateStateDTO | null>
@@ -373,5 +375,14 @@ export interface UpdateStateDTO {
   /** Download progress in %. */
   progress: number | null
   error: string | null
+}
+
+export interface VerdictDTO {
+  id: string
+  area: 'maps' | 'economy' | 'bosses' | 'build'
+  severity: 'warn' | 'tip' | 'good'
+  title: string
+  detail: string
+  tab: 'dashboard' | 'maps' | 'sessions' | 'build'
 }
 

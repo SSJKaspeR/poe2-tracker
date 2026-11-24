@@ -100,3 +100,20 @@ The request count (last hour / 24 h) is shown in the tooltip of the price indica
 
 ⚠️ To verify on a real Windows install: the exact config .ini name and how followed (online) filters
 are cached. Until then the player can pick the file in Maps → Loot filter.
+
+## Verdicts
+
+Rule-based observations (`src/core/verdicts/verdicts.ts`), shown on the Dashboard. Pure functions, no
+AI, no network. `tests/unit/verdicts.test.ts` checks each rule and its minimum sample:
+
+| Area | Rule | Minimum data |
+|---|---|---|
+| Maps | ≥ 25 % of maps with a death (names the worst map) / no death | 8 maps / 16 maps |
+| Maps | a map takes ≥ 1.5× the median map time | 3 runs of that map, 2 maps compared |
+| Economy | loot declared on < 30 % of maps | 8 maps |
+| Economy | most profitable map / strategy (profit/h gap ≥ 30 %) | 3 runs with loot per group |
+| Build versions | maps ≥ 10 % faster or slower, +15 pts of maps with a death | 5 maps per version |
+| Bosses | kill rate < 50 % / every attempt killed | 3 attempts / 5 attempts |
+| Build | elemental res < 75 %, chaos res < 0 (endgame), one max hit < 60 % of the others, movement speed < +10 % (endgame), ≥ 30 Spirit unused, easy gear fixes | an imported build |
+
+The smoke test checks them on the real engine; the e2e test checks the card and its link to the Build tab.

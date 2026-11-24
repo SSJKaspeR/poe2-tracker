@@ -1,5 +1,7 @@
 import { isGearText } from '../core/clipboard/ClipboardWatcher'
 import { existsSync, readFileSync, statSync } from 'node:fs'
+import { computeVerdicts, type VerdictBuild } from '../core/verdicts/verdicts'
+import { formatCurrency } from '../renderer/src/format'
 import { guessActiveFilter, listFilters, poe2DocumentsDirs } from '../core/filter/findLootFilter'
 import { hiddenValuable, parseFilter, type ParsedFilter } from '../core/filter/LootFilter'
 import { EventEmitter } from 'node:events'
@@ -27,6 +29,7 @@ import type {
   GearCheckDTO,
   GuideComparisonDTO,
   LootFilterDTO,
+  VerdictDTO,
   ItemComparisonDTO,
   PresetDTO,
   PresetItemDTO,
@@ -76,6 +79,7 @@ export class TrackerService extends EventEmitter {
   private refreshing: Promise<void> | null = null
   private stopped = false
   private readonly filterDirs: string[]
+  private readonly logFn?: (msg: string) => void
   private parsedFilter: { path: string; mtime: number; filter: ParsedFilter } | null = null
 
   constructor(opts: {
@@ -89,6 +93,7 @@ export class TrackerService extends EventEmitter {
     filterDirs?: string[]
   }) {
     super()
+    this.logFn = opts.log
     this.filterDirs = opts.filterDirs ?? []
     this.database = new AppDatabase(opts.dbPath)
     this.runs = new RunRepository(this.database.db)
@@ -300,6 +305,50 @@ export class TrackerService extends EventEmitter {
     }))
     this.emitStatus()
     return res
+  }
+
+  // ── Verdicts ───────────────────────────────────────────────────────────────
+
+  /**
+   * Rule-based observations on the last 30 days of maps and bosses, and on the active
+   * build (PoB stats + gear check). Same data, same verdicts: no AI, no network.
+   */
+  async verdicts(): Promise<VerdictDTO[]> {
+    const since = new Date(Date.now() - 30 * 24 * 3600_000)
+    const runs = this.runs.detailed({ since, limit: 300 }).map((r) => ({
+      areaName: r.areaName,
+      areaId: r.areaId,
+      areaLevel: r.areaLevel,
+      activeMs: r.activeMs,
+      deaths: r.deaths,
+      ended: r.endedAt !== null,
+      kind: r.kind,
+      outcome: r.outcome,
+      invested: r.invested,
+      looted: r.looted,
+      hasLoot: r.hasLoot,
+      strategyName: r.strategyName,
+      versionLabel: r.versionLabel,
+      versionId: r.buildVersionId
+    }))
+    let build: VerdictBuild | null = null
+    if (this.pob && this.activeVersionId() !== null) {
+      try {
+        await this.pobReady
+        const snap = await this.withPob(() => this.pob!.stats())
+        const gear = await this.gearCheck()
+        build = {
+          level: snap.info.level ?? null,
+          stats: snap.stats,
+          easyGearFixes: gear.ok ? gear.value.reduce((a, g) => a + g.findings.filter((f) => f.level === 'easy').length, 0) : 0
+        }
+      } catch (err) {
+        this.logFn?.(`[verdicts] build skipped: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
+    const exalted = this.priceBook.get('exalted')
+    const rate = exalted && exalted.value > 0 ? 1 / exalted.value : null
+    return computeVerdicts({ runs, build, money: (d) => formatCurrency(d, rate) })
   }
 
   // ── Loot filter ────────────────────────────────────────────────────────────

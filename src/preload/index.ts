@@ -26,6 +26,7 @@ const api: TrackerApi = {
   getTradeWeights: (slot) => ipcRenderer.invoke('trade:weights', slot),
   previewTradeItem: (slot, mods) => ipcRenderer.invoke('trade:preview', slot, mods),
   getRunsDetailed: (sinceDays) => ipcRenderer.invoke('runs:detailed', sinceDays),
+  getVerdicts: () => ipcRenderer.invoke('verdicts:get'),
   getUpdateState: () => ipcRenderer.invoke('update:get'),
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),

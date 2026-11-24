@@ -133,6 +133,15 @@ try {
   await win.getByRole('button', { name: 'I equipped it' }).click()
   await win.getByText(/v2 · Equipped Gloom Shell/).first().waitFor({ timeout: 15_000 })
 
+  step('Dashboard: verdicts on the build, with a link to the Build tab')
+  const verdicts = win.locator('section', { hasText: 'Verdicts' })
+  await verdicts.getByText('Elemental resistances not capped').waitFor({ timeout: 20_000 })
+  await verdicts.scrollIntoViewIfNeeded()
+  await win.screenshot({ path: join(SHOTS, 'screenshot-verdicts.png') })
+  await verdicts.getByRole('button', { name: 'Build →' }).first().click()
+  if (!(await win.getByRole('tab', { name: 'Build' }).getAttribute('aria-selected'))?.includes('true')) fail('verdict link did not open the Build tab')
+  await win.getByRole('tab', { name: /Dashboard/ }).click()
+
   step('Maps tab: history with economy and run detail')
   await win.getByRole('tab', { name: 'Maps' }).click()
   const maps = win.locator('section', { hasText: 'Runs' })

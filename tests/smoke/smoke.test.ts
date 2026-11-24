@@ -108,6 +108,11 @@ describe.skipIf(!paths)('smoke: the app works end to end', () => {
     expect(cmp.ok && cmp.value.slot).toBe('Body Armour')
   })
 
+  it('gives verdicts on the build', async () => {
+    const v = await svc.verdicts()
+    expect(v.map((x) => x.id)).toContain('build.res')
+  })
+
   it('reads the loot filter', () => {
     const lf = svc.lootFilter(1)
     expect(lf.error).toBeNull()

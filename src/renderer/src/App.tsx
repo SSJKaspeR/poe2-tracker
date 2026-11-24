@@ -4,6 +4,7 @@ import { Button } from './components/Card'
 import { CurrentRun, RecentRuns, RunEconomy, StatusBar } from './components/RunsPanel'
 import { SessionBar } from './components/SessionBar'
 import { UpdateNotice } from './components/UpdateNotice'
+import { VerdictsPanel } from './components/VerdictsPanel'
 import { StrategyPanel } from './components/StrategyPanel'
 import { BuildPage } from './pages/BuildPage'
 import { MapsPage } from './pages/MapsPage'
@@ -93,6 +94,7 @@ export function App() {
               <StatusBar />
               <CurrentRun />
               <RunEconomy />
+              <VerdictsPanel onNavigate={openTab} />
               <RecentRuns />
             </div>
             <div className="space-y-4">

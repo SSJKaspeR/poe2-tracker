@@ -84,6 +84,7 @@ function registerIpc(svc: TrackerService): void {
   ipcMain.handle('trade:weights', (_e, slot: string) => svc.tradeWeights(slot))
   ipcMain.handle('trade:preview', (_e, slot: string, mods) => svc.tradePreview(slot, mods))
   ipcMain.handle('runs:detailed', (_e, sinceDays: number | null) => svc.runsDetailed(sinceDays))
+  ipcMain.handle('verdicts:get', () => svc.verdicts())
   ipcMain.handle('update:get', () => updater?.status ?? null)
   ipcMain.handle('update:install', () => updater?.installNow() ?? false)
   ipcMain.handle('update:check', async () => {
