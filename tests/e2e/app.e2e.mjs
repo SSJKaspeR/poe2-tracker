@@ -57,6 +57,8 @@ const fail = (msg) => {
   process.exitCode = 1
 }
 const step = (name) => console.log(`· ${name}`)
+/** What the global compare shortcut does (main process: read the clipboard once, compare). */
+const pressCompareHotkey = () => app.evaluate(({ app: electronApp }) => electronApp.emit('compare-hotkey'))
 
 try {
   await win.getByText('Reading Client.txt').waitFor({ timeout: 15_000 })
@@ -122,8 +124,20 @@ try {
 
   await win.getByText('Objective reached — 1 maps done.').waitFor({ timeout: 5_000 })
 
-  step('Ctrl+C an item in game → automatic comparison')
+  step('Ctrl+C on an item in game, then the compare shortcut → comparison')
+  // GGG rules: one clipboard read per key press. Copying alone does nothing…
   await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), ITEM)
+  await win.waitForTimeout(1_500)
+  if (await win.locator('section', { hasText: 'Compare an item' }).getByText('replaces your').isVisible()) fail('clipboard read without the shortcut')
+  // On Windows the global shortcut must register for real.
+  if (process.platform === 'win32' && (await win.getByText('already used by another app').isVisible())) fail('compare shortcut not registered')
+  // The shortcut with no item in the clipboard explains what to do.
+  await app.evaluate(async ({ clipboard }) => clipboard.writeText('some text from a browser'))
+  await pressCompareHotkey()
+  await win.locator('section', { hasText: 'Compare an item' }).getByText('No item in your clipboard').waitFor({ timeout: 10_000 })
+  // …then the item: the shortcut reads it once (a global shortcut can't be pressed from the test: same code path).
+  await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), ITEM)
+  await pressCompareHotkey()
   await win.locator('section', { hasText: 'Compare an item' }).getByText('replaces your').waitFor({ timeout: 15_000 })
   const compare = await win.locator('section', { hasText: 'Compare an item' }).innerText()
   if (!/Fire res[\s\S]*-50%[\s\S]*-10%/.test(compare)) fail(`compare output: ${compare}`)
@@ -154,6 +168,7 @@ try {
 
   step('Maps tab: loot filter detected, hidden valuable items listed')
   const lf = win.locator('section', { hasText: 'Loot filter' })
+  await lf.getByRole('button', { name: 'Analyse my loot filter' }).click()
   await lf.getByText('6-UBER-PLUS-STRICT').waitFor({ timeout: 10_000 })
   await lf.getByRole('button', { name: '0.5 ex' }).click()
   await lf.getByText(/Your filter (hides|shows everything)/).waitFor({ timeout: 10_000 })
@@ -240,14 +255,16 @@ try {
   if (!/Lightning Arrow[\s\S]*Not used[\s\S]*Lightning Penetration, Multishot I/i.test(gems)) fail(`gems view: ${gems}`)
   await win.screenshot({ path: join(SHOTS, 'screenshot-guide-gems.png') })
 
-  step('Ctrl+C from another tab: notice instead of switching; currency price checks ignored')
+  step('shortcut from another tab: notice instead of switching; currency is not compared')
   await app.evaluate(
     async ({ clipboard }, text) => clipboard.writeText(text),
     'Item Class: Stackable Currency\nRarity: Currency\nExalted Orb\n--------\nStack Size: 3/20'
   )
+  await pressCompareHotkey()
   await win.waitForTimeout(1_500)
-  if (await win.getByText('New item compared').isVisible()) fail('currency copy triggered a comparison')
+  if (await win.getByText('New item compared').isVisible()) fail('currency triggered a comparison')
   await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), ITEM.replace('+90 to maximum Life', '+10 to maximum Life'))
+  await pressCompareHotkey()
   await win.getByText('New item compared').waitFor({ timeout: 15_000 })
   if (!(await win.getByRole('tab', { name: 'Build' }).getAttribute('aria-selected'))?.includes('true')) fail('tab was switched')
   await win.getByRole('button', { name: 'View comparison' }).click()

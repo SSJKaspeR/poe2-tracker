@@ -35,7 +35,9 @@ const api: TrackerApi = {
   getLootFilter: (minExalted) => ipcRenderer.invoke('filter:get', minExalted),
   setLootFilter: (path) => ipcRenderer.invoke('filter:set', path),
   browseLootFilter: () => ipcRenderer.invoke('filter:browse'),
-  setClipboardWatch: (on) => ipcRenderer.invoke('clipboard:set-watch', on),
+  disableLootFilter: () => ipcRenderer.invoke('filter:disable'),
+  setCompareHotkey: (accelerator) => ipcRenderer.invoke('hotkey:set', accelerator),
+  onHotkeyMiss: (listener) => subscribe<'not-item' | 'not-gear'>('hotkey:miss', listener),
   onItemCompared: (listener) => subscribe<Result<ItemComparisonDTO>>('item:compared', listener),
 
   searchPrices: (q) => ipcRenderer.invoke('prices:search', q),

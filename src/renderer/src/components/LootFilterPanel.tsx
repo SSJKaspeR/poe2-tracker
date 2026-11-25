@@ -46,11 +46,24 @@ export function LootFilterPanel() {
           <Button variant="ghost" onClick={() => reload(window.tracker.browseLootFilter())}>
             Choose file…
           </Button>
+          {data?.enabled && (
+            <Button variant="ghost" onClick={() => reload(window.tracker.disableLootFilter())}>
+              Stop
+            </Button>
+          )}
         </div>
       }
     >
       {!data ? (
-        <p className="text-sm text-stone-500">Reading your filter…</p>
+        <p className="text-sm text-stone-500">Loading…</p>
+      ) : !data.enabled ? (
+        <div className="space-y-3 text-sm text-stone-400">
+          <p>
+            Find the valuable items your loot filter hides. The app reads your .filter file once, on your computer
+            (nothing is sent anywhere, the filter is never changed).
+          </p>
+          <Button onClick={() => reload(window.tracker.setLootFilter(null))}>Analyse my loot filter</Button>
+        </div>
       ) : (
         <div className="space-y-3 text-sm">
           {data.path && (

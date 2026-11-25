@@ -51,7 +51,7 @@ The engine ships inside the app, so engine updates reach players through app rel
 | Loot, investment, profit, profit/hour, values frozen | Economy | service | ✓ |
 | Sessions: rush objective, boss kill/fail, hideout crafting, history, rates hidden < 5 min | SessionRepository | service | ✓ |
 | Build import / re-import / other character / bad codes | BuildRepository | bridge, service, robustness | ✓ |
-| Item comparison (Ctrl+C, clipboard switch, bad copies, 100 in a burst) | ClipboardWatcher | bridge, service, robustness | ✓ |
+| Item comparison (compare shortcut: one clipboard read per press, equipment only, misses reported, bad copies) | compareHotkey | bridge, service, robustness | ✓ |
 | "I equipped it" → new version, real quality kept | — | bridge, service | ✓ |
 | Versions linked to maps, results per version | BuildRepository | service | ✓ |
 | Gear check | gearCheck | bridge, service | ✓ |
@@ -62,7 +62,7 @@ The engine ships inside the app, so engine updates reach players through app rel
 | Engine missing → tracking still works | — | robustness | — |
 | Settings, build, strategies, session kept after restart | — | service restart | — |
 | Display formats | misc | — | ✓ |
-| Tabs, navigation, Ctrl+C brings back the Dashboard | — | — | ✓ |
+| Tabs, navigation, shortcut from another tab shows a notice | — | — | ✓ |
 | Windows installer, packaged engine | — | Windows CI | Windows CI |
 
 ## Not covered automatically (needs the real game)
@@ -94,8 +94,12 @@ The request count (last hour / 24 h) is shown in the tooltip of the price indica
   fallback on the most recent `.filter`.
 - `tests/pob/TrackerService.test.ts` ("loot filter"): priced items hidden by the player's filter,
   threshold in exalted, manual choice of the file.
-- Exiled Exchange 2 also copies items (Ctrl+D). Only equipment is compared (`isGearText`); the app
-  shows a notice instead of switching tab. PoB reads the advanced copy (Ctrl+Alt+C) the same way.
+- GGG overlay rules: "Reading from the screen or clipboard may only be performed once per manual key
+  press." The app never watches the clipboard: the compare shortcut (default Ctrl+Shift+C, global,
+  configurable) reads it once. Only equipment is compared (`isGearText`), anything else is reported to
+  the player. PoB reads the advanced copy (Ctrl+Alt+C) the same way. The e2e test triggers the same code
+  path with `app.emit('compare-hotkey')`.
+- The loot filter is read only after the player clicks "Analyse my loot filter" (`lootFilterConsent`).
 - E2E: `POE2_FILTER_DIR` points the app at a test folder holding the 6-UBER-PLUS-STRICT filter.
 
 ⚠️ To verify on a real Windows install: the exact config .ini name and how followed (online) filters

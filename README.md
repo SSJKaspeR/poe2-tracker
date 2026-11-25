@@ -23,7 +23,7 @@ Free, open-source, local-first desktop tracker for **Path of Exile 2**.
 | Headless Path of Building bridge | ✅ build import/export, item comparison, node comparison |
 | poe.ninja pricing (1 h cache) | ✅ |
 | Build versions (every run linked to the active version) | ✅ |
-| Ctrl+C item comparison (automatic) + "I equipped it" | ✅ |
+| Item comparison: Ctrl+C on the item in game, then the app shortcut (Ctrl+Shift+C) + "I equipped it" | ✅ |
 | Farming strategies (waystone + tablets…) auto-applied to each map, loot entry, profit/hour | ✅ |
 | Sessions with a farming mode: rush N maps, pinnacle boss attempts (kill/fail), hideout stash/crafting — real profit/hour over the whole session | ✅ |
 | Maps tab: history by period, per-run detail, stats by map | ✅ |
@@ -75,3 +75,16 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 ## License
 
 MIT
+
+## Game rules
+
+The app follows GGG's [third-party policy](https://www.pathofexile.com/developer):
+
+- It reads `Client.txt` (the game log) to track maps, and says so in the app.
+- It reads the clipboard **once per press of its shortcut**, never in the background, and never sends
+  keys to the game.
+- It reads your loot filter only after you click "Analyse my loot filter", and never changes it.
+- It never calls GGG's trade API or undocumented endpoints, and never reads or modifies game files or memory.
+
+Not affiliated with or endorsed by Grinding Gear Games.
+

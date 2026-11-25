@@ -10,7 +10,7 @@ SmartScreen shows a warning — click "More info" then "Run anyway". Once instal
 
 - Map tracking from Client.txt: time per map, deaths, sessions (rush maps, pinnacle boss, hideout crafting)
 - Economy: strategies, loot and profit per hour with poe.ninja prices
-- Build: import your Path of Building code, item comparison on Ctrl+C in game, gear check, guide comparison
+- Build: import your Path of Building code, item comparison (Ctrl+C on the item in game, then Ctrl+Shift+C), gear check, guide comparison
   (gear, passive tree, gems), trade upgrade search opened on the official trade site
 - Loot filter: priced items your filter hides
 - Calculation engine: Path of Building Community (PoE 2), unmodified, MIT — see THIRD_PARTY_NOTICES.md

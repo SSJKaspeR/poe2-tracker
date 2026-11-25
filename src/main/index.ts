@@ -1,6 +1,5 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, shell } from 'electron'
 import { join, resolve } from 'node:path'
-import { ClipboardWatcher } from '../core/clipboard/ClipboardWatcher'
 import { poe2DocumentsDirs } from '../core/filter/findLootFilter'
 import { Updater } from './updater'
 import { resolvePobPaths } from '../core/pob/paths'
@@ -8,7 +7,7 @@ import { TrackerService } from './TrackerService'
 
 let mainWindow: BrowserWindow | null = null
 let service: TrackerService | null = null
-let clipboardWatcher: ClipboardWatcher | null = null
+let registeredHotkey: string | null = null
 let updater: Updater | null = null
 
 function pobOptions() {
@@ -100,6 +99,10 @@ function registerIpc(svc: TrackerService): void {
     svc.setLootFilter(path)
     return svc.lootFilter()
   })
+  ipcMain.handle('filter:disable', () => {
+    svc.disableLootFilter()
+    return svc.lootFilter()
+  })
   ipcMain.handle('filter:browse', async () => {
     const r = await dialog.showOpenDialog({
       title: 'Choose your PoE 2 loot filter',
@@ -110,9 +113,9 @@ function registerIpc(svc: TrackerService): void {
     if (!r.canceled && r.filePaths[0]) svc.setLootFilter(r.filePaths[0])
     return svc.lootFilter()
   })
-  ipcMain.handle('clipboard:set-watch', (_e, on: boolean) => {
-    svc.setClipboardWatch(on)
-    syncClipboardWatcher(svc)
+  ipcMain.handle('hotkey:set', (_e, accelerator: string | null) => {
+    svc.setCompareHotkey(accelerator)
+    syncCompareHotkey(svc)
     return svc.status()
   })
 
@@ -149,16 +152,32 @@ function registerIpc(svc: TrackerService): void {
   )
 }
 
-/** Ctrl+C on an item in game → automatic comparison. */
-function syncClipboardWatcher(svc: TrackerService): void {
-  if (!clipboardWatcher) {
-    clipboardWatcher = new ClipboardWatcher(
-      () => clipboard.readText(),
-      (text) => void svc.onCopiedItem(text)
-    )
+/**
+ * Compare hotkey. GGG overlay rules: the clipboard may only be read once per manual key
+ * press. So the app never watches the clipboard: each press of the hotkey reads it once
+ * (the item the player just copied with Ctrl+C in game). Nothing is sent to the game.
+ */
+async function compareFromClipboard(svc: TrackerService): Promise<void> {
+  const text = await Promise.resolve(clipboard.readText())
+  await svc.onCompareHotkey(text)
+}
+
+function syncCompareHotkey(svc: TrackerService): void {
+  if (registeredHotkey) globalShortcut.unregister(registeredHotkey)
+  registeredHotkey = null
+  svc.hotkeyError = null
+  const accelerator = svc.getCompareHotkey()
+  if (accelerator) {
+    let ok = false
+    try {
+      ok = globalShortcut.register(accelerator, () => void compareFromClipboard(svc))
+    } catch {
+      ok = false
+    }
+    if (ok) registeredHotkey = accelerator
+    else svc.hotkeyError = 'This shortcut is already used by another app: choose another one.'
   }
-  if (svc.status().clipboardWatch) void clipboardWatcher.start()
-  else clipboardWatcher.stop()
+  mainWindow?.webContents.send('status:changed', svc.status())
 }
 
 // One instance only: a second window would double every poe.ninja request and share the database.
@@ -191,10 +210,14 @@ app.whenReady().then(async () => {
   service.on('item-compared', (result) => {
     mainWindow?.webContents.send('item:compared', result)
   })
+  service.on('hotkey-miss', (reason) => mainWindow?.webContents.send('hotkey:miss', reason))
+  // Same path as the hotkey, for the end-to-end test (a global shortcut can't be pressed there).
+  const svcRef = service
+  app.on('compare-hotkey' as never, () => void compareFromClipboard(svcRef))
   registerIpc(service)
   createWindow()
   await service.start()
-  syncClipboardWatcher(service)
+  syncCompareHotkey(service)
   await startUpdater(service)
 
   app.on('activate', () => {
@@ -222,7 +245,7 @@ app.on('before-quit', (event) => {
   if (quitting || !service) return
   event.preventDefault()
   quitting = true
-  clipboardWatcher?.stop()
+  globalShortcut.unregisterAll()
   updater?.stop()
   void service.stop().finally(() => app.quit())
 })

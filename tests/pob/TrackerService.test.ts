@@ -258,26 +258,42 @@ describe.skipIf(!paths)('TrackerService (whole app logic, real engine)', () => {
     expect(svc.status().build!.buildId).not.toBe(first.buildId)
   })
 
-  it('item comparison through the clipboard, and the on/off switch', async () => {
+  it('compare hotkey: one clipboard read per press, equipment only, misses reported', async () => {
     const svc = await startService(folder())
     unwrap(await svc.importBuild(fx('build-level1.pobcode'), { newBuild: false }))
     const seen: unknown[] = []
+    const misses: string[] = []
     svc.on('item-compared', (r) => seen.push(r))
-    await svc.onCopiedItem(ITEM)
-    expect(seen).toHaveLength(1)
-    expect(seen[0]).toMatchObject({ ok: true, value: { slot: 'Body Armour', itemText: ITEM } })
-    svc.setClipboardWatch(false)
-    await svc.onCopiedItem(ITEM)
-    expect(seen).toHaveLength(1)
-    expect(svc.status().clipboardWatch).toBe(false)
-    svc.setClipboardWatch(true)
-    // Non-gear copies (e.g. a price check with Exiled Exchange 2) are ignored.
-    await svc.onCopiedItem('Item Class: Stackable Currency\nRarity: Currency\nExalted Orb\n--------\nStack Size: 1/20')
-    await svc.onCopiedItem('Item Class: Nope\nRarity: Rare\nWhat\nNot A Base')
+    svc.on('hotkey-miss', (r) => misses.push(r))
+    expect(await svc.onCompareHotkey(ITEM)).toBe('gear')
+    expect(seen).toEqual([expect.objectContaining({ ok: true, value: expect.objectContaining({ slot: 'Body Armour', itemText: ITEM }) })])
+    // Currency (e.g. just price checked with Exiled Exchange 2) and random text: told, not compared.
+    expect(await svc.onCompareHotkey('Item Class: Stackable Currency\nRarity: Currency\nExalted Orb\n--------\nStack Size: 1/20')).toBe('not-gear')
+    expect(await svc.onCompareHotkey('https://poe.ninja')).toBe('not-item')
+    expect(misses).toEqual(['not-gear', 'not-item'])
     expect(seen).toHaveLength(1)
     // A bad gear copy is reported, not thrown.
-    await svc.onCopiedItem('Item Class: Body Armours\nRarity: Rare\nWhat\nNot A Base')
+    await svc.onCompareHotkey('Item Class: Body Armours\nRarity: Rare\nWhat\nNot A Base')
     expect(seen[1]).toMatchObject({ ok: false })
+  })
+
+  it('compare hotkey setting: default, change, off, and the old "Auto" switch', async () => {
+    const f = folder()
+    const svc = await startService(f)
+    expect(svc.status().compareHotkey).toEqual({ accelerator: 'CommandOrControl+Shift+C', label: 'Ctrl+Shift+C', error: null })
+    svc.setCompareHotkey('F7')
+    expect(svc.status().compareHotkey.label).toBe('F7')
+    svc.setCompareHotkey(null)
+    expect(svc.status().compareHotkey.accelerator).toBeNull()
+    await svc.stop()
+    services.splice(services.indexOf(svc), 1)
+
+    // A player who had turned "Auto (Ctrl+C)" off keeps it off.
+    const db = new AppDatabase(join(f.dir, 'old.db'))
+    db.db.prepare("INSERT INTO settings (key, value) VALUES ('clipboardWatch', '0')").run()
+    db.close()
+    const old = await startService({ ...f, db: join(f.dir, 'old.db') })
+    expect(old.status().compareHotkey.accelerator).toBeNull()
   })
 
   it('gear check and guide comparison (gear, tree, gems)', async () => {
@@ -367,6 +383,9 @@ describe.skipIf(!paths)('TrackerService loot filter', () => {
     writeFileSync(join(filters, 'poe2_production_Config.ini'), 'item_filter=NeverSink Uber Plus.filter\n')
     const svc = await startService(f, { filterDirs: [filters] })
 
+    // Nothing is read before the player asks.
+    expect(svc.lootFilter(1)).toMatchObject({ enabled: false, path: null, candidates: [] })
+    svc.setLootFilter(null)
     const auto = svc.lootFilter(1)
     expect(auto).toMatchObject({ auto: true, error: null, info: { type: '6-UBER-PLUS-STRICT' } })
     expect(auto.candidates).toHaveLength(2)
@@ -377,10 +396,13 @@ describe.skipIf(!paths)('TrackerService loot filter', () => {
     expect(svc.lootFilter(1)).toMatchObject({ auto: false, hidden: [], info: { type: '3-STRICT' } })
     svc.setLootFilter(null)
     expect(svc.lootFilter(1).auto).toBe(true)
+    svc.disableLootFilter()
+    expect(svc.lootFilter(1).enabled).toBe(false)
   })
 
   it('says so when no filter is found', async () => {
     const svc = await startService(folder(), { filterDirs: [] })
+    svc.setLootFilter(null)
     expect(svc.lootFilter().error).toMatch(/No loot filter found/)
   })
 })

@@ -58,7 +58,8 @@ export interface AppStatus {
   }
   activePresetId: number | null
   autoApplyPreset: boolean
-  clipboardWatch: boolean
+  /** Hotkey that reads the clipboard once to compare the item copied in game (null = off). */
+  compareHotkey: { accelerator: string | null; label: string | null; error: string | null }
   session: SessionSummaryDTO | null
 }
 
@@ -308,7 +309,10 @@ export interface TrackerApi {
   previewTradeItem(slot: string, mods: { tradeId: string; text: string; value: number }[]): Promise<Result<TradePreviewDTO>>
   /** Completed runs with economy; `sinceDays` null = all time. */
   getRunsDetailed(sinceDays: number | null): Promise<RunDetailDTO[]>
-  setClipboardWatch(on: boolean): Promise<AppStatus>
+  /** Change the compare hotkey (Electron accelerator), null to turn it off. */
+  setCompareHotkey(accelerator: string | null): Promise<AppStatus>
+  /** Hotkey pressed but the clipboard held no equipment. */
+  onHotkeyMiss(listener: (reason: 'not-item' | 'not-gear') => void): () => void
   onItemCompared(listener: (r: Result<ItemComparisonDTO>) => void): () => void
 
   // Economy
@@ -336,6 +340,8 @@ export interface TrackerApi {
   setLootFilter(path: string | null): Promise<LootFilterDTO>
   /** File dialog to pick a .filter file. */
   browseLootFilter(): Promise<LootFilterDTO>
+  /** Stop reading the loot filter. */
+  disableLootFilter(): Promise<LootFilterDTO>
 
   // Sessions
   startSession(s: StartSessionDTO): Promise<AppStatus>
@@ -353,6 +359,8 @@ export interface TrackerApi {
 }
 
 export interface LootFilterDTO {
+  /** false until the player asks to analyse their filter: nothing is read before. */
+  enabled: boolean
   /** Filter analysed (null when none was found). */
   path: string | null
   /** true when guessed (in-game selection or most recent file), false when chosen by the player. */

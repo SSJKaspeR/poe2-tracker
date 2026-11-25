@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { BuildSnapshotDTO, ItemComparisonDTO } from '@shared/ipc'
+import { HOTKEY_CHOICES } from '@shared/hotkeys'
 import { STAT_LABELS, formatStat, isImprovement } from '../format'
 import { useTracker } from '../store'
 import { Button, Card } from './Card'
@@ -133,12 +134,25 @@ export function ItemComparePanel() {
   const [result, setResult] = useState<ItemComparisonDTO | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [equipped, setEquipped] = useState(false)
+  const [miss, setMiss] = useState<string | null>(null)
+  useEffect(
+    () =>
+      window.tracker.onHotkeyMiss((reason) =>
+        setMiss(
+          reason === 'not-gear'
+            ? 'The item in your clipboard is not equipment (currency, waystone, gem…): nothing to compare.'
+            : 'No item in your clipboard: hover the item in game, press Ctrl+C, then the shortcut.'
+        )
+      ),
+    []
+  )
 
   // Ctrl+C on an item in game → the main process compares it and pushes the result.
   useEffect(
     () =>
       window.tracker.onItemCompared((res) => {
         setEquipped(false)
+        setMiss(null)
         if (res.ok) {
           setResult(res.value)
           setText(res.value.itemText ?? '')
@@ -180,21 +194,35 @@ export function ItemComparePanel() {
       title="Compare an item"
       actions={
         status && (
-          <label className="flex items-center gap-1.5 text-xs text-stone-400" title="Compare automatically when you press Ctrl+C on an item in game">
-            <input
-              type="checkbox"
-              className="accent-amber-500"
-              checked={status.clipboardWatch}
-              onChange={(e) => void window.tracker.setClipboardWatch(e.target.checked).then(setStatus)}
-            />
-            Auto (Ctrl+C in game)
+          <label
+            className="flex items-center gap-1.5 text-xs text-stone-400"
+            title="In game: Ctrl+C on an item, then this shortcut. The app reads the clipboard once per press (GGG rules) and never sends keys to the game."
+          >
+            Shortcut
+            <select
+              aria-label="Compare shortcut"
+              className="rounded border border-stone-700 bg-stone-900 px-1.5 py-0.5 text-xs text-stone-200"
+              value={status.compareHotkey.accelerator ?? ''}
+              onChange={(e) => void window.tracker.setCompareHotkey(e.target.value || null).then(setStatus)}
+            >
+              {HOTKEY_CHOICES.map((c) => (
+                <option key={c.accelerator} value={c.accelerator}>
+                  {c.label}
+                </option>
+              ))}
+              <option value="">Off</option>
+            </select>
           </label>
         )
       }
     >
       <textarea
         className="h-24 w-full resize-none rounded-md border border-stone-800 bg-stone-950 p-2 font-mono text-xs text-stone-300 outline-none focus:border-ember-500"
-        placeholder="Hover an item in game and press Ctrl+C — or paste it here"
+        placeholder={
+          status?.compareHotkey.label
+            ? `In game: Ctrl+C on an item, then ${status.compareHotkey.label} — or paste it here`
+            : 'Paste an item here (Ctrl+C on it in game)'
+        }
         value={text}
         onChange={(e) => setText(e.target.value)}
         onPaste={(e) => {
@@ -208,6 +236,8 @@ export function ItemComparePanel() {
         </Button>
         {error && <span className="text-sm text-red-400">{error}</span>}
       </div>
+      {miss && <p className="mt-2 text-sm text-amber-400">{miss}</p>}
+      {status?.compareHotkey.error && <p className="mt-2 text-sm text-amber-400">{status.compareHotkey.error}</p>}
       {result && (
         <div className="mt-3">
           <div className="text-sm text-stone-400">

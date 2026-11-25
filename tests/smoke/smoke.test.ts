@@ -113,7 +113,9 @@ describe.skipIf(!paths)('smoke: the app works end to end', () => {
     expect(v.map((x) => x.id)).toContain('build.res')
   })
 
-  it('reads the loot filter', () => {
+  it('reads the loot filter once the player asks', () => {
+    expect(svc.lootFilter(1).enabled).toBe(false)
+    svc.setLootFilter(null)
     const lf = svc.lootFilter(1)
     expect(lf.error).toBeNull()
     expect(lf.hidden.map((h) => h.name)).toContain('Regal Orb')

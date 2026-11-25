@@ -1,4 +1,4 @@
-import { isGearText } from '../core/clipboard/ClipboardWatcher'
+import { checkClipboard, DEFAULT_HOTKEY, hotkeyLabel, type ClipboardCheck } from '../core/clipboard/compareHotkey'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { computeVerdicts, type VerdictBuild } from '../core/verdicts/verdicts'
 import { formatCurrency } from '../renderer/src/format'
@@ -80,6 +80,8 @@ export class TrackerService extends EventEmitter {
   private stopped = false
   private readonly filterDirs: string[]
   private readonly logFn?: (msg: string) => void
+  /** Set by the main process when the hotkey can't be registered (taken by another app). */
+  hotkeyError: string | null = null
   private parsedFilter: { path: string; mtime: number; filter: ParsedFilter } | null = null
 
   constructor(opts: {
@@ -233,7 +235,11 @@ export class TrackerService extends EventEmitter {
       },
       activePresetId: this.activePresetId(),
       autoApplyPreset: this.getSetting('autoApplyPreset') === '1',
-      clipboardWatch: this.getSetting('clipboardWatch') !== '0',
+      compareHotkey: {
+        accelerator: this.getCompareHotkey(),
+        label: hotkeyLabel(this.getCompareHotkey()),
+        error: this.hotkeyError
+      },
       session: this.activeSessionSummary()
     }
   }
@@ -278,11 +284,16 @@ export class TrackerService extends EventEmitter {
     return res.ok ? { ok: true, value: { ...res.value, itemText } } : res
   }
 
-  /** Item copied in game: compare it and push the result to the UI. */
-  async onCopiedItem(itemText: string): Promise<void> {
-    if (this.getSetting('clipboardWatch') === '0') return
-    if (!isGearText(itemText)) return // currency, waystones… (e.g. price checked with Exiled Exchange 2)
-    this.emit('item-compared', await this.compareItem(itemText))
+  /**
+   * The player pressed the compare hotkey: the clipboard was read once (GGG overlay rules).
+   * Equipment is compared and pushed to the UI; anything else is reported, so the player
+   * knows why nothing happened.
+   */
+  async onCompareHotkey(clipboardText: string): Promise<ClipboardCheck> {
+    const check = checkClipboard(clipboardText)
+    if (check === 'gear') this.emit('item-compared', await this.compareItem(clipboardText))
+    else this.emit('hotkey-miss', check)
+    return check
   }
 
   /** Equip an item for real: becomes a new version of the active build. */
@@ -359,6 +370,10 @@ export class TrackerService extends EventEmitter {
    * which poe.ninja names don't give.
    */
   lootFilter(minExalted = 1): LootFilterDTO {
+    // Nothing is read until the player asks for it (Maps → Loot filter → Analyse).
+    if (this.getSetting('lootFilterConsent') !== '1') {
+      return { path: null, auto: true, candidates: [], info: null, areaLevel: 80, minExalted, hidden: [], error: null, enabled: false }
+    }
     const chosen = this.getSetting('lootFilterPath')
     const candidates = listFilters(this.filterDirs).map((c) => ({ path: c.path, name: c.name, online: c.online }))
     const path = chosen && existsSync(chosen) ? chosen : guessActiveFilter(this.filterDirs)
@@ -366,6 +381,7 @@ export class TrackerService extends EventEmitter {
     const exalted = this.priceBook.get('exalted')
     const exPerDiv = exalted && exalted.value > 0 ? 1 / exalted.value : null
     const base: LootFilterDTO = {
+      enabled: true,
       path,
       auto: !(chosen && existsSync(chosen)),
       candidates,
@@ -407,8 +423,16 @@ export class TrackerService extends EventEmitter {
     this.setSetting('updateChecks', on ? '1' : '0')
   }
 
+  /** Use this filter (null = automatic). Choosing is also the player's go-ahead to read it. */
   setLootFilter(path: string | null): void {
+    this.setSetting('lootFilterConsent', '1')
     this.setSetting('lootFilterPath', path ?? '')
+    this.parsedFilter = null
+  }
+
+  /** Stop reading the loot filter. */
+  disableLootFilter(): void {
+    this.setSetting('lootFilterConsent', '0')
     this.parsedFilter = null
   }
 
@@ -620,8 +644,15 @@ export class TrackerService extends EventEmitter {
     }))
   }
 
-  setClipboardWatch(on: boolean): void {
-    this.setSetting('clipboardWatch', on ? '1' : '0')
+  /** Compare hotkey (Electron accelerator), null when turned off. */
+  getCompareHotkey(): string | null {
+    const v = this.getSetting('compareHotkey')
+    if (v === null) return this.getSetting('clipboardWatch') === '0' ? null : DEFAULT_HOTKEY // old "Auto" switch
+    return v === '' ? null : v
+  }
+
+  setCompareHotkey(accelerator: string | null): void {
+    this.setSetting('compareHotkey', accelerator ?? '')
     this.emitStatus()
   }
 
