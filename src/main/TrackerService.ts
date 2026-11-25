@@ -9,7 +9,7 @@ import { guessActiveFilter, listFilters, poe2DocumentsDirs } from '../core/filte
 import { hiddenValuable, parseFilter, type ParsedFilter } from '../core/filter/LootFilter'
 import { EventEmitter } from 'node:events'
 import { checkGear } from '../core/build/gearCheck'
-import { rankSupports, rankSupportSwaps, rankTree, swapCandidates } from '../core/build/optimisations'
+import { pointsSummary, rankSupports, rankSupportSwaps, rankTree, swapCandidates } from '../core/build/optimisations'
 import { goodItemMods, itemSheets, rankRuneOptions, rankSlots, defensiveLines, type SlotPreview } from '../core/build/gearAdvice'
 import { compareGear, impactScore, type DetailedItem } from '../core/build/targetCompare'
 import { compareSkills, compareTree, type SkillGroup, type TreeDetail } from '../core/build/treeGemsCompare'
@@ -391,9 +391,11 @@ export class TrackerService extends EventEmitter {
         await this.pobReady
         const snap = await this.withPob(() => this.pob!.stats())
         const gear = await this.gearCheck()
+        const points = await wrap(() => this.withPob(() => this.pob!.passivePoints()))
         build = {
           level: snap.info.level ?? null,
           stats: snap.stats,
+          points: points.ok ? points.value : undefined,
           easyGearFixes: gear.ok ? gear.value.reduce((a, g) => a + g.findings.filter((f) => f.level === 'easy').length, 0) : 0
         }
       } catch (err) {
@@ -696,7 +698,8 @@ export class TrackerService extends EventEmitter {
     await this.pobReady
     const res = await wrap(() =>
       this.withPob(async () => {
-        const tree = rankTree(await this.pob!.treeOptions(5))
+        const treeData = await this.pob!.treeOptions(5)
+        const tree = rankTree(treeData)
         const swaps: OptimisationsDTO['tree']['swaps'] = []
         for (const c of swapCandidates(tree.adds, tree.removes)) {
           const r = await this.pob!.treeSwap(c.add.pathIds, c.remove.ids)
@@ -722,7 +725,7 @@ export class TrackerService extends EventEmitter {
             : raw
           supports = { skill: null, current: [], candidates: [], swaps: [], error }
         }
-        return { tree: { adds: tree.adds, removes: tree.removes, swaps: swaps.slice(0, 3) }, supports }
+        return { tree: { points: pointsSummary(treeData), adds: tree.adds, removes: tree.removes, swaps: swaps.slice(0, 3) }, supports }
       })
     )
     if (res.ok && this.activeVersionId() === versionId) this.optimisationCache = { versionId, value: res.value }

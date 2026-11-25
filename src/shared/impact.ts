@@ -140,3 +140,68 @@ export function itemVerdict(impact: Impact, deathRate: number | null): ItemVerdi
     text: `Gains: ${top(up)}. Losses: ${top(down)}. ${impact.score > 0 ? 'Slightly better overall.' : 'Slightly worse overall.'}`
   }
 }
+
+// ── Costs and passive points ────────────────────────────────────────────────
+
+export interface ManaSustain {
+  /** Mana spent per second using the main skill non-stop. */
+  perSecond: number
+  /** Mana regenerated per second. */
+  regen: number
+  /** Seconds of non-stop use before running dry, null when regen keeps up. */
+  secondsUntilEmpty: number | null
+}
+
+/** Can the player keep using the main skill? (PoB: cost per second vs regeneration). */
+export function manaSustain(stats: StatMap): ManaSustain | null {
+  const perSecond = stats.ManaPerSecondCost
+  if (!perSecond || perSecond <= 0) return null
+  const regen = stats.ManaRegenRecovery ?? 0
+  const pool = stats.ManaUnreserved ?? stats.Mana ?? 0
+  const deficit = perSecond - regen
+  return { perSecond, regen, secondsUntilEmpty: deficit > 0 ? pool / deficit : null }
+}
+
+/** Stats after a change, from the stats before and the PoB difference. */
+export function applyDiff(before: StatMap, diff: StatDiff): StatMap {
+  const out = { ...before }
+  for (const [k, c] of Object.entries(diff)) out[k] = c.after
+  return out
+}
+
+/**
+ * What a change does to the costs of the build, in plain words: mana per use, how long the
+ * mana lasts, Spirit left. Only problems are reported.
+ */
+export function costWarnings(before: StatMap, diff: StatDiff): ImpactLine[] {
+  const after = applyDiff(before, diff)
+  const out: ImpactLine[] = []
+  const cost = diff.ManaCost
+  if (cost && cost.delta >= 1) {
+    out.push({ text: `+${Math.round(cost.delta)} mana per use (${Math.round(cost.before)} → ${Math.round(cost.after)})`, good: false, weight: 3 })
+  }
+  const was = manaSustain(before)
+  const now = manaSustain(after)
+  if (now?.secondsUntilEmpty != null && now.secondsUntilEmpty < 20 && (was?.secondsUntilEmpty == null || now.secondsUntilEmpty < was.secondsUntilEmpty - 1)) {
+    out.push({ text: `Mana runs out after ~${Math.max(1, Math.round(now.secondsUntilEmpty))} s of non-stop use`, good: false, weight: 12 })
+  }
+  const spirit = after.SpiritUnreserved
+  if (spirit !== undefined && spirit < 0 && (before.SpiritUnreserved ?? 0) >= 0) {
+    out.push({ text: `Not enough Spirit (${Math.round(spirit)})`, good: false, weight: 15 })
+  }
+  return out
+}
+
+export interface PassivePointsInfo {
+  used: number
+  available: number
+  campaignLevel: number
+  level: number
+}
+
+/** Unspent passive points, null when none or when quest points may not all be collected yet. */
+export function unspentPoints(p: PassivePointsInfo): number | null {
+  if (p.level < p.campaignLevel) return null
+  const n = p.available - p.used
+  return n > 0 ? n : null
+}

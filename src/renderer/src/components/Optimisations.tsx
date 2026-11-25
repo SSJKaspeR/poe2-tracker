@@ -66,6 +66,12 @@ export function Optimisations() {
   return (
     <Card title="Optimisations: passive tree & supports">
       <div className="space-y-5 text-sm">
+        {tree.points.unspent !== null && (
+          <p role="status" className="rounded-md border border-amber-700 bg-amber-950/30 px-3 py-2 text-amber-100">
+            You have <strong>{tree.points.unspent}</strong> passive point{tree.points.unspent > 1 ? 's' : ''} not spent (
+            {tree.points.used} / {tree.points.available}). Start with the best next points below.
+          </p>
+        )}
         <section aria-label="Best next passive points">
           <h4 className="mb-1 font-medium text-stone-200">Best next points (gain per point spent)</h4>
           {tree.adds.length === 0 ? (
@@ -151,6 +157,7 @@ export function Optimisations() {
                           <span className="text-xs">
                             <Effects lines={s.impact} max={2} />
                           </span>
+                          {s.costs.length > 0 && <div className="text-xs text-amber-300">⚠ {s.costs.map((c) => c.text).join(' · ')}</div>}
                         </li>
                       ))}
                     </ul>
@@ -171,6 +178,7 @@ export function Optimisations() {
                             {c.replaces && (
                               <span className="block text-xs text-stone-500">Same family as {c.replaces}: it would replace it.</span>
                             )}
+                            {c.costs.length > 0 && <span className="block text-xs text-amber-300">⚠ {c.costs.map((x) => x.text).join(' · ')}</span>}
                           </span>
                           {c.price !== null && <span className="shrink-0 text-xs tabular-nums text-stone-400">≈ {money(c.price)}</span>}
                         </li>
@@ -180,7 +188,8 @@ export function Optimisations() {
                 )}
                 <p className="mt-2 text-xs text-stone-600">
                   Path of Building measures single-target damage and effective HP. Each support gem can only be used once in
-                  PoE 2, so supports used by your other skills are left out.
+                  PoE 2, so supports used by your other skills are left out. Support gems have no attribute requirement;
+                  their mana and Spirit costs are checked above.
                 </p>
               </>
             )}

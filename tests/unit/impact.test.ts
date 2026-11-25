@@ -59,3 +59,30 @@ describe('comparison verdict', () => {
     expect(itemVerdict(safer, 0.3).text).toMatch(/You die in 30% of your maps: worth it/)
   })
 })
+
+describe('costs and passive points', () => {
+  it('mana sustain: how long the main skill can be used non-stop', async () => {
+    const { manaSustain } = await import('../../src/shared/impact')
+    expect(manaSustain({ ManaPerSecondCost: 30, ManaRegenRecovery: 20, ManaUnreserved: 100 })).toEqual({ perSecond: 30, regen: 20, secondsUntilEmpty: 10 })
+    expect(manaSustain({ ManaPerSecondCost: 10, ManaRegenRecovery: 20, ManaUnreserved: 100 })?.secondsUntilEmpty).toBeNull()
+    expect(manaSustain({ ManaRegenRecovery: 20 })).toBeNull()
+  })
+
+  it('cost warnings: mana per use, mana running out, Spirit', async () => {
+    const { costWarnings } = await import('../../src/shared/impact')
+    const before = { ManaCost: 10, ManaPerSecondCost: 20, ManaRegenRecovery: 20, ManaUnreserved: 120, SpiritUnreserved: 10 }
+    expect(costWarnings(before, { ManaCost: d(10, 16), ManaPerSecondCost: d(20, 32) }).map((l) => l.text)).toEqual([
+      '+6 mana per use (10 → 16)',
+      'Mana runs out after ~10 s of non-stop use'
+    ])
+    expect(costWarnings(before, { SpiritUnreserved: d(10, -15) }).map((l) => l.text)).toEqual(['Not enough Spirit (-15)'])
+    expect(costWarnings(before, { CombinedDPS: d(1, 2) })).toEqual([])
+  })
+
+  it('unspent passive points only once every quest point can be counted', async () => {
+    const { unspentPoints } = await import('../../src/shared/impact')
+    expect(unspentPoints({ used: 100, available: 104, campaignLevel: 60, level: 80 })).toBe(4)
+    expect(unspentPoints({ used: 30, available: 50, campaignLevel: 60, level: 40 })).toBeNull()
+    expect(unspentPoints({ used: 104, available: 104, campaignLevel: 60, level: 80 })).toBeNull()
+  })
+})

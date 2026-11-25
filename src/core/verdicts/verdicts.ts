@@ -1,3 +1,4 @@
+import { manaSustain, unspentPoints, type PassivePointsInfo } from '../../shared/impact'
 /**
  * Verdicts: short, rule-based observations on the player's maps, bosses and build,
  * each backed by numbers and pointing to where to act. No AI, no network: the same
@@ -42,6 +43,8 @@ export interface VerdictBuild {
   stats: Record<string, number>
   /** Gear findings the player can fix cheaply (empty rune sockets, open mods…). */
   easyGearFixes: number
+  /** Passive points used / available (PoB's counting). */
+  points?: PassivePointsInfo
 }
 
 export interface VerdictInput {
@@ -369,6 +372,31 @@ function buildVerdicts(b: VerdictBuild, playsEndgame: boolean): Verdict[] {
       severity: 'tip',
       title: `${Math.round(s.SpiritUnreserved)} Spirit unused`,
       detail: 'Room for another persistent buff or a meta gem.',
+      tab: 'build'
+    })
+  }
+
+  const unspent = b.points ? unspentPoints(b.points) : null
+  if (unspent) {
+    out.push({
+      id: 'build.unspent-points',
+      area: 'build',
+      severity: 'warn',
+      title: `${unspent} passive point${unspent > 1 ? 's' : ''} not spent`,
+      detail: `${b.points!.used} of ${b.points!.available} points used (all quest points counted). Free power: see the best next points in Build → Optimisations.`,
+      tab: 'build'
+    })
+  }
+
+  const mana = manaSustain(s)
+  if (mana?.secondsUntilEmpty != null && mana.secondsUntilEmpty < 20) {
+    const secs = Math.max(1, Math.round(mana.secondsUntilEmpty))
+    out.push({
+      id: 'build.mana',
+      area: 'build',
+      severity: secs < 10 ? 'warn' : 'tip',
+      title: `Your main skill runs out of mana after ~${secs} s`,
+      detail: `It costs ${Math.round(mana.perSecond)} mana per second used non-stop, you regenerate ${Math.round(mana.regen)}. More mana regeneration, leech or a cheaper support fixes it.`,
       tab: 'build'
     })
   }

@@ -464,6 +464,8 @@ export interface ItemSheetDTO {
 /** Passive tree and support gem suggestions for the active build. */
 export interface OptimisationsDTO {
   tree: {
+    /** Passive points: unspent is null when none (or quest points maybe not all collected yet). */
+    points: { used: number; available: number; unspent: number | null }
     /** Best next points, by gain per point spent. */
     adds: { id: number; name: string; kind: string; stats: string[]; cost: number; via: string[]; score: number; perPoint: number; impact: ImpactLine[] }[]
     /** Allocated points that bring the least (respec candidates). */
@@ -486,8 +488,10 @@ export interface OptimisationsDTO {
       impact: ImpactLine[]
       /** Current support of the same family it would replace (they don't stack). */
       replaces: string | null
+      /** Cost problems: mana per use, mana running out, not enough Spirit. */
+      costs: ImpactLine[]
     }[]
-    swaps: { remove: string; add: string; score: number; impact: ImpactLine[] }[]
+    swaps: { remove: string; add: string; score: number; impact: ImpactLine[]; costs: ImpactLine[] }[]
     error?: string
   } | null
 }

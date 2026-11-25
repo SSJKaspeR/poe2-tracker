@@ -13,6 +13,7 @@ describe('passive tree', () => {
     before: {},
     used: 40,
     level: 60,
+    points: { used: 40, available: 82, questPoints: 23, campaignLevel: 60, level: 60, ascendancyUsed: 0 },
     adds: [
       add(1, 'Far notable', 5, 130), // +30% → 6/pt
       add(2, 'Close small', 1, 108), // +8% → 8/pt
@@ -76,6 +77,18 @@ describe('support gems', () => {
     expect(r.current[0]).toMatchObject({ name: 'Lightning Penetration', note: null })
     expect(r.current[1]!.note).toMatch(/^Lowers Path of Building's single-target damage/)
     expect(r.current[2]!.note).toMatch(/^No effect on Path of Building's numbers/)
+  })
+
+  it('warns about the mana a support would cost', () => {
+    const costly = rankSupports(
+      {
+        ...data,
+        before: { ManaCost: 10, ManaPerSecondCost: 20, ManaRegenRecovery: 20, ManaUnreserved: 100 },
+        candidates: [{ id: 'x', name: 'Costly', lineage: false, reqStr: 0, reqDex: 0, reqInt: 0, diff: { CombinedDPS: d(100, 150), ManaCost: d(10, 20), ManaPerSecondCost: d(20, 40) } }]
+      },
+      () => null
+    )
+    expect(costly.candidates[0]!.costs.map((c) => c.text)).toEqual(['+10 mana per use (10 → 20)', 'Mana runs out after ~5 s of non-stop use'])
   })
 
   it('best of each family, lineage and price, and what it would replace', () => {

@@ -153,3 +153,14 @@ Dashboard verdicts once calculated.
 Tests: `tests/unit/optimisations.test.ts`; engine test on a Lightning Arrow build with a bow equipped (without a
 bow the skill deals no damage and no support changes anything); e2e (card, clear message for a build with no gem).
 
+### Passive points, mana and Spirit
+
+- **Unspent points**: bridge `passive_points`, Path of Building's own counting: available = level − 1 + all quest
+  points + bonus points (weapon set points apart). Only claimed once the character is past the last quest giving
+  points (`campaignLevel`); when PoB estimates the level from the points used, there is never a false "unspent".
+  Shown in Optimisations and as a verdict. Engine test: the same tree at a fixed level 80 → 103 available, 15 used.
+- **Supports suggested**: support gems have no attribute requirement in PoE 2 (PoB: `getGemStatRequirement`
+  returns 0 for supports). Their costs are checked: mana per use, how long the mana lasts using the main skill
+  non-stop (`ManaPerSecondCost` vs `ManaRegenRecovery`, warning under 20 s), Spirit going negative.
+- **Verdict**: the main skill runs out of mana in under 20 s of non-stop use (warning under 10 s).
+

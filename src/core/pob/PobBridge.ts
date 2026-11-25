@@ -192,6 +192,11 @@ export class PobBridge {
     return this.request('export_code')
   }
 
+  /** The loaded build as Path of Building XML. */
+  exportXml(): Promise<{ xml: string }> {
+    return this.request('export_xml')
+  }
+
   stats(): Promise<BuildSnapshot> {
     return this.request('stats')
   }
@@ -236,6 +241,11 @@ export class PobBridge {
   /** Passive tree: reachable nodes (with path), removable nodes, used points. */
   treeOptions(maxDepth = 5): Promise<TreeOptions> {
     return this.request('tree_options', { maxDepth }, 120_000)
+  }
+
+  /** Passive points used vs available (PoB's counting). */
+  passivePoints(): Promise<PassivePoints> {
+    return this.request('passive_points')
   }
 
   /** Real result of removing and adding passive nodes as one change. */
@@ -357,10 +367,22 @@ export interface TreeNodeOption {
   diff: Record<string, { before: number; after: number; delta: number }>
 }
 
+export interface PassivePoints {
+  used: number
+  /** Level - 1 + all quest points + bonus points. */
+  available: number
+  questPoints: number
+  /** Level of the last campaign quest giving points: below it, some may not be collected yet. */
+  campaignLevel: number
+  level: number
+  ascendancyUsed: number
+}
+
 export interface TreeOptions {
   before: Record<string, number>
   used: number
   level: number
+  points: PassivePoints
   adds: (TreeNodeOption & { via: string[]; pathIds: number[] })[]
   removes: (TreeNodeOption & { ids: number[] })[]
 }

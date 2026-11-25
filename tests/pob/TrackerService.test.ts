@@ -437,6 +437,10 @@ describe.skipIf(!paths)('TrackerService optimisations (tree & supports)', () => 
     unwrap(await svc.equipItem('Item Class: Bows\nRarity: Normal\nCrude Bow\n--------\nItem Level: 10'))
     const o = unwrap(await svc.optimisations())
 
+    // Level 12, 15 points used: below the campaign, quest points may be missing, so no "unspent" claim.
+    expect(o.tree.points.used).toBe(15)
+    expect(o.tree.points.available).toBeGreaterThanOrEqual(11)
+    expect(o.tree.points.unspent).toBeNull()
     expect(o.tree.adds.length).toBeGreaterThan(0)
     expect(o.tree.adds.map((a) => a.perPoint)).toEqual([...o.tree.adds.map((a) => a.perPoint)].sort((a, b) => b - a))
     expect(o.tree.adds.every((a) => a.cost >= 1 && a.cost <= 5 && a.impact.length > 0)).toBe(true)
@@ -451,6 +455,9 @@ describe.skipIf(!paths)('TrackerService optimisations (tree & supports)', () => 
     expect(sup.candidates.length).toBeGreaterThan(0)
     expect(sup.candidates.map((c) => c.name)).not.toContain('Lightning Penetration') // one copy per character
     expect(sup.swaps.every((s) => s.remove !== 'Multishot I')).toBe(true)
+    expect(sup.candidates.every((c) => Array.isArray(c.costs))).toBe(true)
+    // Mana cost of the main skill is now part of the stats (sustain checks).
+    expect(unwrap(await svc.buildSnapshot())!.stats.ManaCost).toBeGreaterThan(0)
 
     // Once calculated, the best next passive shows up in the Dashboard verdicts.
     expect((await svc.verdicts()).map((v) => v.id)).toContain('build.next-point')

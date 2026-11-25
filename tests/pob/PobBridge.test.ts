@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PobBridge } from '@core/pob/PobBridge'
@@ -81,6 +82,16 @@ Item Level: 80
     expect(cmp.diff.Life?.delta).toBe(95)
     expect(cmp.diff.FireResist?.delta).toBe(40)
     expect(cmp.diff.ColdResist?.delta).toBe(30)
+  })
+
+  it('counts passive points like Path of Building (level - 1 + quest points)', async () => {
+    await bridge.loadCode(readFileSync(resolve(ROOT, 'tests/fixtures/build-guide-treegems.pobcode'), 'utf8').trim())
+    const auto = await bridge.passivePoints()
+    expect(auto).toMatchObject({ used: 15, level: 12, questPoints: 24 })
+    // A fixed level 80 with the same tree: 79 + 24 available, 15 used.
+    const { xml } = await bridge.exportXml()
+    await bridge.loadXml(xml.replace(/level="\d+"/, 'level="80"').replace('characterLevelAutoMode="true"', 'characterLevelAutoMode="false"'))
+    expect(await bridge.passivePoints()).toMatchObject({ used: 15, level: 80, available: 103 })
   })
 
   it('equips an item and keeps it after export/import', async () => {

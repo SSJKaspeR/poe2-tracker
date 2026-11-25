@@ -3,7 +3,7 @@
  * worded for players. PoB measures single-target damage and effective HP: anything
  * else (clear speed, utility) is pointed out, not judged.
  */
-import { summarizeImpact, type ImpactLine } from '../../shared/impact'
+import { costWarnings, summarizeImpact, unspentPoints, type ImpactLine } from '../../shared/impact'
 import type { SupportOptions, TreeOptions } from '../pob/PobBridge'
 
 export interface TreeAdd {
@@ -31,6 +31,17 @@ export interface TreeRemove {
   /** What removing it costs (score, ≥ 0 means a loss). */
   loss: number
   impact: ImpactLine[]
+}
+
+export interface PointsSummary {
+  used: number
+  available: number
+  /** Points left to spend (null: none, or quest points maybe not all collected yet). */
+  unspent: number | null
+}
+
+export function pointsSummary(data: TreeOptions): PointsSummary {
+  return { used: data.points.used, available: data.points.available, unspent: unspentPoints(data.points) }
 }
 
 /** Best next points per point spent, and the allocated points that bring the least. */
@@ -122,6 +133,8 @@ export interface SupportCandidate {
   impact: ImpactLine[]
   /** Current support of the same family: they don't stack, this one would replace it. */
   replaces: string | null
+  /** Cost problems it would cause (mana per use, mana running out, Spirit). */
+  costs: ImpactLine[]
 }
 
 export interface SupportSwap {
@@ -129,6 +142,7 @@ export interface SupportSwap {
   add: string
   score: number
   impact: ImpactLine[]
+  costs: ImpactLine[]
 }
 
 export function rankSupports(
@@ -165,7 +179,8 @@ export function rankSupports(
       price: priceOf(c.name),
       score: imp.score,
       impact: imp.lines,
-      replaces: sameFamily(c.family)
+      replaces: sameFamily(c.family),
+      costs: costWarnings(data.before, c.diff)
     }
     // Supports of one family don't stack: keep the best of each.
     const key = c.family ?? c.name
@@ -188,7 +203,9 @@ export function rankSupportSwaps(data: SupportOptions, keep: string[] = [], top 
     const imp = summarizeImpact(s.diff, data.before)
     if (imp.score <= 0.5) continue
     const prev = best.get(s.add)
-    if (!prev || imp.score > prev.score) best.set(s.add, { remove: s.remove, add: s.add, score: imp.score, impact: imp.lines })
+    if (!prev || imp.score > prev.score) {
+      best.set(s.add, { remove: s.remove, add: s.add, score: imp.score, impact: imp.lines, costs: costWarnings(data.before, s.diff) })
+    }
   }
   return [...best.values()].sort((a, b) => b.score - a.score).slice(0, top)
 }

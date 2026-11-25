@@ -107,6 +107,8 @@ local STAT_KEYS = {
 	-- Sustain / utility
 	"LifeRegenRecovery", "LifeLeechGainRate", "EnergyShieldRegenRecovery", "ManaRegenRecovery",
 	"EffectiveMovementSpeedMod",
+	-- Costs of the main skill (sustain)
+	"ManaCost", "ManaPerSecondCost",
 	-- Attributes
 	"Str", "Dex", "Int",
 }
@@ -688,6 +690,31 @@ function commands.mod_impact(req)
 	return { before = before, items = out }
 end
 
+-- Passive points: used vs available, with Path of Building's own counting (level - 1 +
+-- quest points + bonus points; weapon set points apart). Quest points are assumed all
+-- collected once the character is past the campaign level.
+local function passivePoints()
+	local used, ascUsed, _, _, ws1, ws2 = build.spec:CountAllocNodes()
+	local out = build.calcsTab.mainOutput or {}
+	local level = build.characterLevel or 1
+	local acts = build.acts or {}
+	local lastAct = acts[#acts] or { level = 1, questPoints = 0 }
+	local extra = out.ExtraPoints or 0
+	return {
+		used = used - math.min(ws1 or 0, ws2 or 0),
+		available = (level - 1) + (lastAct.questPoints or 0) + extra,
+		questPoints = lastAct.questPoints or 0,
+		campaignLevel = lastAct.level or 1,
+		level = level,
+		ascendancyUsed = ascUsed or 0,
+	}
+end
+
+function commands.passive_points()
+	requireBuild()
+	return passivePoints()
+end
+
 -- Passive tree suggestions: every unallocated node reachable within `maxDepth` points
 -- (with its path), every allocated node that can be removed with what depends on it
 -- (up to 4 points), and a few swaps (remove + add) checked by PoB as a whole.
@@ -747,7 +774,7 @@ function commands.tree_options(req)
 			end
 		end
 	end
-	return { before = before, used = used, level = build.characterLevel or 1, adds = adds, removes = removes }
+	return { before = before, used = used, level = build.characterLevel or 1, points = passivePoints(), adds = adds, removes = removes }
 end
 
 -- Remove some allocated nodes and add others (by id), as one change: the real result of a respec.

@@ -165,6 +165,16 @@ describe('verdicts: build stats', () => {
     expect(verdict(b({}, { easyGearFixes: 3 }), 'build.gear')?.title).toBe('3 easy gear improvements')
   })
 
+  it('unspent passive points and a main skill that runs out of mana', () => {
+    const points = { used: 90, available: 95, campaignLevel: 60, level: 80 }
+    expect(verdict(b({}, { points }), 'build.unspent-points')).toMatchObject({ severity: 'warn', title: '5 passive points not spent' })
+    expect(verdict(b({}, { points: { ...points, level: 50 } }), 'build.unspent-points')).toBeUndefined()
+    const mana = { ManaPerSecondCost: 50, ManaRegenRecovery: 20, ManaUnreserved: 150 }
+    expect(verdict(b(mana), 'build.mana')).toMatchObject({ severity: 'warn', title: 'Your main skill runs out of mana after ~5 s' })
+    expect(verdict(b({ ...mana, ManaUnreserved: 450 }), 'build.mana')?.severity).toBe('tip')
+    expect(verdict(b({ ...mana, ManaRegenRecovery: 60 }), 'build.mana')).toBeUndefined()
+  })
+
   it('most important first: warnings, then tips, then good news', () => {
     const v = computeVerdicts({ runs: many(16), build: b({ FireResist: 40, SpiritUnreserved: 50 }), money })
     expect(v.map((x) => x.id)).toEqual(['build.res', 'build.spirit', 'economy.coverage', 'maps.no-deaths'])
