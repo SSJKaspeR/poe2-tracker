@@ -4,6 +4,7 @@
  * could bring. Pure functions: the PoB numbers come in, sorted suggestions go out.
  */
 import { summarizeImpact, type ImpactLine, type StatMap } from '../../shared/impact'
+import { en, type Translator } from '../../shared/i18n'
 import type { ModImpact, RuneOptions } from '../pob/PobBridge'
 
 export interface RuneSuggestion {
@@ -31,12 +32,12 @@ export interface RuneSlotAdvice {
   bestValue: string | null
 }
 
-export function rankRuneOptions(data: RuneOptions, priceOf: (name: string) => number | null, top = 5): RuneSlotAdvice[] {
+export function rankRuneOptions(data: RuneOptions, priceOf: (name: string) => number | null, top = 5, t: Translator = en): RuneSlotAdvice[] {
   return data.slots
     .map((s) => {
       const all = s.options
         .map((o) => {
-          const imp = summarizeImpact(o.diff, data.before)
+          const imp = summarizeImpact(o.diff, data.before, t)
           const unit = priceOf(o.name)
           return {
             name: o.name,
@@ -89,10 +90,10 @@ export interface SlotPriority {
 }
 
 /** Slots ranked by how much a good rare with the most useful stats would add. */
-export function rankSlots(previews: SlotPreview[]): SlotPriority[] {
+export function rankSlots(previews: SlotPreview[], t: Translator = en): SlotPriority[] {
   return previews
     .map((p) => {
-      const imp = summarizeImpact(p.diff, p.before)
+      const imp = summarizeImpact(p.diff, p.before, t)
       return { slot: p.slot, item: p.item, dps: imp.dps, ehp: imp.ehp, score: imp.score, impact: imp.lines, lookFor: p.mods, kept: p.kept ?? [] }
     })
     .sort((a, b) => b.score - a.score)
@@ -172,12 +173,12 @@ export interface ItemSheet {
  * Each mod line of each equipped item with what it brings to the build (PoB recalculates
  * the item without the line). The weakest explicit line of a rare is the one to replace first.
  */
-export function itemSheets(data: ModImpact): ItemSheet[] {
+export function itemSheets(data: ModImpact, t: Translator = en): ItemSheet[] {
   return data.items.map((it) => {
     const lines = it.lines.map((l) => {
-      const imp = summarizeImpact(l.diff, data.before)
-      // "(now -10%)" reads as "after the change" elsewhere; here it is what the player has.
-      const effects = imp.lines.filter((x) => x.good).map((x) => x.text.replace('(now ', '(you have '))
+      // What the player has with this line ("you have 50%"), not a change.
+      const imp = summarizeImpact(l.diff, data.before, t, 'current')
+      const effects = imp.lines.filter((x) => x.good).map((x) => x.text)
       return { kind: l.kind, text: l.text, crafted: l.crafted, effects, score: imp.score }
     })
     let weakest: number | null = null

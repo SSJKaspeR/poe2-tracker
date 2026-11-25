@@ -1,15 +1,18 @@
 import { useState } from 'react'
 import type { InvestmentKind, PresetDTO, PresetItemDTO } from '@shared/ipc'
-import { useMoney, useTracker } from '../store'
+import { useMoney, useT, useTracker } from '../store'
+import type { Translator } from '@shared/i18n'
 import { Button, Card } from './Card'
 import { ItemPicker } from './ItemPicker'
 
-const KINDS: { value: InvestmentKind; label: string }[] = [
-  { value: 'waystone', label: 'Waystone' },
-  { value: 'tablet', label: 'Tablet' },
-  { value: 'currency', label: 'Currency' },
-  { value: 'other', label: 'Other' }
-]
+function kinds(t: Translator): { value: InvestmentKind; label: string }[] {
+  return [
+    { value: 'waystone', label: t('Waystone') },
+    { value: 'tablet', label: t('Tablet') },
+    { value: 'currency', label: t('Currency') },
+    { value: 'other', label: t('Other') }
+  ]
+}
 
 /**
  * A strategy = what goes into each map (waystone + tablets + other). Set it up
@@ -21,17 +24,18 @@ export function StrategyPanel() {
   const setPresets = useTracker((s) => s.setPresets)
   const setStatus = useTracker((s) => s.setStatus)
   const money = useMoney()
+  const t = useT()
   const [editing, setEditing] = useState<{ id?: number; name: string; items: PresetItemDTO[] } | null>(null)
 
   if (!status) return null
 
   return (
     <Card
-      title="Strategies"
+      title={t('Strategies')}
       actions={
         !editing && (
           <Button variant="ghost" onClick={() => setEditing({ name: '', items: [] })}>
-            New
+            {t('New')}
           </Button>
         )
       }
@@ -58,7 +62,7 @@ export function StrategyPanel() {
         />
       ) : presets.length === 0 ? (
         <p className="text-sm text-stone-500">
-          Describe what you put in a map once (waystone, tablets…). Its cost is then counted on every run.
+          {t('Describe what you put in a map once (waystone, tablets…). Its cost is then counted on every run.')}
         </p>
       ) : (
         <>
@@ -86,7 +90,7 @@ export function StrategyPanel() {
                 void window.tracker.setActivePreset(status.activePresetId, e.target.checked).then(setStatus)
               }
             />
-            Apply the selected strategy to every new map
+            {t('Apply the selected strategy to every new map')}
           </label>
         </>
       )}
@@ -102,21 +106,22 @@ function PresetRow(props: {
   onEdit: () => void
 }) {
   const { preset, active } = props
+  const t = useT()
   return (
     <li className={`flex items-center justify-between rounded-md px-2 py-1 ${active ? 'bg-stone-800' : ''}`}>
       <button type="button" className="flex flex-1 items-center gap-2 text-left" onClick={props.onSelect}>
         <span className={active ? 'text-ember-400' : 'text-stone-600'}>{active ? '●' : '○'}</span>
         <span className="text-stone-200">{preset.name}</span>
         {preset.unpriced.length > 0 && (
-          <span className="text-xs text-amber-500" title={`No price for: ${preset.unpriced.join(', ')}`}>
+          <span className="text-xs text-amber-500" title={t('No price for: {items}', { items: preset.unpriced.join(', ') })}>
             ⚠
           </span>
         )}
       </button>
       <span className="flex items-center gap-3">
-        <span className="tabular-nums text-stone-400">{props.cost} / map</span>
+        <span className="tabular-nums text-stone-400">{t('{cost} / map', { cost: props.cost })}</span>
         <button type="button" className="text-xs text-stone-500 hover:text-stone-200" onClick={props.onEdit}>
-          Edit
+          {t('Edit')}
         </button>
       </span>
     </li>
@@ -132,12 +137,14 @@ function PresetEditor(props: {
   const [name, setName] = useState(props.value.name)
   const [items, setItems] = useState<PresetItemDTO[]>(props.value.items)
   const [kind, setKind] = useState<InvestmentKind>('waystone')
+  const t = useT()
+  const KINDS = kinds(t)
 
   return (
     <div className="space-y-3 text-sm">
       <input
         className="w-full rounded-md border border-stone-800 bg-stone-950 px-2 py-1 outline-none focus:border-ember-500"
-        placeholder="Name (e.g. T15 Breach, 3 tablets)"
+        placeholder={t('Name (e.g. T15 Breach, 3 tablets)')}
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
@@ -153,7 +160,7 @@ function PresetEditor(props: {
               <button
                 type="button"
                 className="text-stone-600 hover:text-red-400"
-                aria-label={`Remove ${it.label}`}
+                aria-label={t('Remove {item}', { item: it.label })}
                 onClick={() => setItems(items.filter((_, j) => j !== i))}
               >
                 ✕
@@ -164,7 +171,7 @@ function PresetEditor(props: {
       )}
       <div className="flex items-center gap-2">
         <select
-          aria-label="Kind"
+          aria-label={t('Kind')}
           className="rounded-md border border-stone-800 bg-stone-950 px-1 py-1 outline-none"
           value={kind}
           onChange={(e) => setKind(e.target.value as InvestmentKind)}
@@ -180,18 +187,18 @@ function PresetEditor(props: {
         </div>
       </div>
       <p className="text-xs text-stone-500">
-        Tablets have 10 charges: one tablet per map = quantity 0.1. Items without a market price need a value in div.
+        {t('Tablets have 10 charges: one tablet per map = quantity 0.1. Items without a market price need a value in div.')}
       </p>
       <div className="flex gap-2">
         <Button disabled={!name.trim() || items.length === 0} onClick={() => props.onSave({ id: props.value.id, name: name.trim(), items })}>
-          Save
+          {t('Save')}
         </Button>
         <Button variant="ghost" onClick={props.onCancel}>
-          Cancel
+          {t('Cancel')}
         </Button>
         {props.onDelete && (
           <button type="button" className="ml-auto text-xs text-red-400 hover:underline" onClick={props.onDelete}>
-            Delete
+            {t('Delete')}
           </button>
         )}
       </div>

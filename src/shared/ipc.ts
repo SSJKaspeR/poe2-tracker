@@ -60,6 +60,10 @@ export interface AppStatus {
   }
   activePresetId: number | null
   autoApplyPreset: boolean
+  /** Interface language. */
+  language: 'en' | 'fr'
+  /** Automatic update checks (installed app). */
+  updateChecks: boolean
   /** Hotkey that reads the clipboard once to compare the item copied in game (null = off). */
   compareHotkey: { accelerator: string | null; label: string | null; error: string | null }
   session: SessionSummaryDTO | null
@@ -316,6 +320,7 @@ export interface TrackerApi {
   previewTradeItem(slot: string, mods: { tradeId: string; text: string; value: number }[]): Promise<Result<TradePreviewDTO>>
   /** Completed runs with economy; `sinceDays` null = all time. */
   getRunsDetailed(sinceDays: number | null): Promise<RunDetailDTO[]>
+  setLanguage(lang: 'en' | 'fr'): Promise<AppStatus>
   /** Clipboard text, read once on a player click ("Paste & import"). */
   readClipboardOnce(): Promise<string>
   /** Change the compare hotkey (Electron accelerator), null to turn it off. */

@@ -3,6 +3,8 @@
  * PoB provides the facts (audit_items); the rules live here so they can be tested.
  */
 
+import { en, type Translator } from '../../shared/i18n'
+
 export interface ItemAudit {
   slot: string
   name: string
@@ -47,7 +49,7 @@ export const LOW_BASE_GAP = 15
 /** A rare this many item levels below the character can only roll low-tier mods. */
 export const LOW_ITEM_LEVEL_GAP = 20
 
-export function checkItem(it: ItemAudit, characterLevel: number): Finding[] {
+export function checkItem(it: ItemAudit, characterLevel: number, t: Translator = en): Finding[] {
   const out: Finding[] = []
   const locked = it.corrupted || it.mirrored
 
@@ -56,12 +58,12 @@ export function checkItem(it: ItemAudit, characterLevel: number): Finding[] {
     out.push({
       kind: 'empty_socket',
       level: 'easy',
-      message: `${empty} empty socket${empty > 1 ? 's' : ''} — add a rune or soul core`
+      message: empty > 1 ? t('{n} empty sockets — add a rune or soul core', { n: empty }) : t('{n} empty socket — add a rune or soul core', { n: empty })
     })
   }
 
   if (locked) {
-    out.push({ kind: 'locked', level: 'info', message: it.corrupted ? 'Corrupted — cannot be modified' : 'Mirrored — cannot be modified' })
+    out.push({ kind: 'locked', level: 'info', message: it.corrupted ? t('Corrupted — cannot be modified') : t('Mirrored — cannot be modified') })
     return out
   }
 
@@ -70,7 +72,10 @@ export function checkItem(it: ItemAudit, characterLevel: number): Finding[] {
     out.push({
       kind: 'missing_socket',
       level: 'easy',
-      message: `${missingSockets} more socket${missingSockets > 1 ? 's' : ''} possible (Artificer's Orb)`
+      message:
+        missingSockets > 1
+          ? t("{n} more sockets possible (Artificer's Orb)", { n: missingSockets })
+          : t("{n} more socket possible (Artificer's Orb)", { n: missingSockets })
     })
   }
 
@@ -78,23 +83,28 @@ export function checkItem(it: ItemAudit, characterLevel: number): Finding[] {
     // One modifier can span two lines (hybrid mods), so lines over-count modifiers:
     // fewer lines than the limit always means at least that many free slots.
     const free = it.affixLimit - it.explicitLines
-    const how = it.rarity === 'MAGIC' ? 'Regal or Augmentation Orb' : 'Exalted Orb'
+    const how = it.rarity === 'MAGIC' ? t('Regal or Augmentation Orb') : t('Exalted Orb')
+    const params = { n: free, used: it.explicitLines, max: it.affixLimit, how }
     out.push({
       kind: 'open_affix',
       level: 'easy',
-      message: `At least ${free} open modifier${free > 1 ? 's' : ''} (${it.explicitLines}/${it.affixLimit}) — ${how}`
+      message: free > 1 ? t('At least {n} open modifiers ({used}/{max}) — {how}', params) : t('At least {n} open modifier ({used}/{max}) — {how}', params)
     })
   }
 
   if (it.maxQuality > 0 && it.quality < it.maxQuality) {
-    out.push({ kind: 'quality', level: 'easy', message: `Quality ${it.quality}% / ${it.maxQuality}%` })
+    out.push({ kind: 'quality', level: 'easy', message: t('Quality {q}% / {max}%', { q: it.quality, max: it.maxQuality }) })
   }
 
   if (it.bestBase && it.rarity !== 'UNIQUE' && it.bestBase.level - it.baseLevel >= LOW_BASE_GAP) {
     out.push({
       kind: 'low_base',
       level: 'upgrade',
-      message: `Low-level base (level ${it.baseLevel}) — ${it.bestBase.name} is available at level ${it.bestBase.level}`
+      message: t('Low-level base (level {level}) — {base} is available at level {best}', {
+        level: it.baseLevel,
+        base: it.bestBase.name,
+        best: it.bestBase.level
+      })
     })
   }
 
@@ -102,7 +112,7 @@ export function checkItem(it: ItemAudit, characterLevel: number): Finding[] {
     out.push({
       kind: 'low_item_level',
       level: 'upgrade',
-      message: `Item level ${it.itemLevel} — its modifiers are limited to low tiers`
+      message: t('Item level {n} — its modifiers are limited to low tiers', { n: it.itemLevel })
     })
   }
 
@@ -111,11 +121,11 @@ export function checkItem(it: ItemAudit, characterLevel: number): Finding[] {
 
 const LEVEL_ORDER: Record<FindingLevel, number> = { easy: 0, upgrade: 1, info: 2 }
 
-export function checkGear(audit: { characterLevel: number; items: ItemAudit[] }): ItemCheck[] {
+export function checkGear(audit: { characterLevel: number; items: ItemAudit[] }, t: Translator = en): ItemCheck[] {
   return audit.items.map((it) => ({
     slot: it.slot,
     name: it.name,
     rarity: it.rarity,
-    findings: checkItem(it, audit.characterLevel).sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level])
+    findings: checkItem(it, audit.characterLevel, t).sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level])
   }))
 }

@@ -16,7 +16,11 @@ extraResources:
     to: pob/bridge.lua
   - from: THIRD_PARTY_NOTICES.md
     to: THIRD_PARTY_NOTICES.md
+  # Window icon (the installer and .exe use build-resources/icon.ico)
+  - from: resources/icon.png
+    to: icon.png
 win:
+  icon: build-resources/icon.ico
   target:
     - target: nsis
       arch: [x64]
@@ -26,8 +30,11 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
+  installerIcon: build-resources/icon.ico
+  uninstallerIcon: build-resources/icon.ico
   shortcutName: PoE2 Tracker
 linux:
+  icon: build-resources/icon.png
   target:
     - target: dir
   category: Game

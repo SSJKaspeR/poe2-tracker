@@ -1,6 +1,7 @@
 import { checkClipboard, DEFAULT_HOTKEY, hotkeyLabel, type ClipboardCheck } from '../core/clipboard/compareHotkey'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import axios from 'axios'
+import { isLang, langFromLocale, translator, type Lang, type Translator } from '../shared/i18n'
 import { itemVerdict, summarizeImpact } from '../shared/impact'
 import { resolveBuildCode, type FetchText } from '../core/pob/buildSource'
 import { computeVerdicts, type VerdictBuild } from '../core/verdicts/verdicts'
@@ -86,12 +87,13 @@ export class TrackerService extends EventEmitter {
   private loadedGeneration = -1
   private readonly tradeWeightCache = new Map<string, TradeWeightsDTO>()
   private refreshing: Promise<void> | null = null
-  private priorityCache: { versionId: number; value: UpgradePriorityDTO[] } | null = null
-  private optimisationCache: { versionId: number; value: OptimisationsDTO } | null = null
+  private priorityCache: { versionId: number; lang: Lang; value: UpgradePriorityDTO[] } | null = null
+  private optimisationCache: { versionId: number; lang: Lang; value: OptimisationsDTO } | null = null
   private stopped = false
   private readonly filterDirs: string[]
   private readonly logFn?: (msg: string) => void
   private readonly fetchText: FetchText
+  private readonly systemLang: Lang
   /** Set by the main process when the hotkey can't be registered (taken by another app). */
   hotkeyError: string | null = null
   private parsedFilter: { path: string; mtime: number; filter: ParsedFilter } | null = null
@@ -107,8 +109,11 @@ export class TrackerService extends EventEmitter {
     filterDirs?: string[]
     /** Downloads a build code from a sharing site (faked in tests). */
     fetchText?: FetchText
+    /** System locale ("fr-FR"): default language until the player picks one. */
+    locale?: string
   }) {
     super()
+    this.systemLang = langFromLocale(opts.locale)
     const ua = opts.userAgent ?? 'PoE2Tracker (+https://github.com/SSJKaspeR/poe2-tracker)'
     this.fetchText =
       opts.fetchText ??
@@ -131,7 +136,7 @@ export class TrackerService extends EventEmitter {
     this.tracker.setTrackOtherAreas(this.sessions.active()?.mode === 'boss')
     this.pricing = opts.pricing ?? new PoeNinjaClient({ cache: new SqlitePriceCache(this.database.db), userAgent: opts.userAgent })
     this.pob = opts.pob ? new PobBridge({ ...opts.pob, onLog: (l) => opts.log?.(`[pob] ${l}`) }) : null
-    if (!opts.pob) this.pobError = 'Path of Building engine not installed (run `npm run setup:pob`)'
+    if (!opts.pob) this.pobError = 'not-installed'
 
     this.tracker.on((e) => {
       if (this.stopped) return
@@ -243,7 +248,7 @@ export class TrackerService extends EventEmitter {
         available: this.pob !== null,
         running: this.pob?.running ?? false,
         version: this.pobVersion,
-        error: this.pobError
+        error: this.pobError === null ? null : this.pobMessage()
       },
       trackerState: this.tracker.getState(),
       currentRun: current ? toDTO(current, null) : null,
@@ -261,6 +266,8 @@ export class TrackerService extends EventEmitter {
       },
       activePresetId: this.activePresetId(),
       autoApplyPreset: this.getSetting('autoApplyPreset') === '1',
+      language: this.getLanguage(),
+      updateChecks: this.getUpdateChecks(),
       compareHotkey: {
         accelerator: this.getCompareHotkey(),
         label: hotkeyLabel(this.getCompareHotkey()),
@@ -284,8 +291,8 @@ export class TrackerService extends EventEmitter {
 
   /** Import the player's build from a PoB code or a build link (pobb.in, poe.ninja, Maxroll…). */
   async importBuild(input: string, opts: { newBuild: boolean; name?: string }): Promise<Result<BuildSnapshotDTO>> {
-    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
-    const resolved = await wrap(() => resolveBuildCode(input, this.fetchText))
+    if (!this.pob) return { ok: false, error: this.pobMessage() }
+    const resolved = await wrap(() => resolveBuildCode(input, this.fetchText, this.t))
     if (!resolved.ok) return resolved
     const code = resolved.value
     await this.pobReady
@@ -308,14 +315,14 @@ export class TrackerService extends EventEmitter {
   }
 
   async compareItem(itemText: string): Promise<Result<ItemComparisonDTO>> {
-    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    if (!this.pob) return { ok: false, error: this.pobMessage() }
     await this.pobReady
     const res = await wrap(() => this.withPob(() => this.pob!.compareItem(itemText)))
     if (!res.ok) return res
-    const impact = summarizeImpact(res.value.diff, res.value.before)
+    const impact = summarizeImpact(res.value.diff, res.value.before, this.t)
     return {
       ok: true,
-      value: { ...res.value, itemText, impact: impact.lines, verdict: itemVerdict(impact, this.recentDeathRate()) }
+      value: { ...res.value, itemText, impact: impact.lines, verdict: itemVerdict(impact, this.recentDeathRate(), this.t) }
     }
   }
 
@@ -341,9 +348,9 @@ export class TrackerService extends EventEmitter {
 
   /** Equip an item for real: becomes a new version of the active build. */
   async equipItem(itemText: string): Promise<Result<BuildSnapshotDTO>> {
-    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    if (!this.pob) return { ok: false, error: this.pobMessage() }
     const active = this.activeBuild()
-    if (!active) return { ok: false, error: 'Import your build first' }
+    if (!active) return { ok: false, error: this.t('Import your build first') }
     await this.pobReady
     const res = await wrap(() => this.withPob(async () => {
       const snap = await this.pob!.equipItem(itemText)
@@ -351,7 +358,7 @@ export class TrackerService extends EventEmitter {
       const itemName = firstItemName(itemText)
       const v = this.builds.addVersion(active.buildId, {
         pobCode: code,
-        label: `Equipped ${itemName} (${snap.slot})`,
+        label: this.t('Equipped {item} ({slot})', { item: itemName, slot: snap.slot }),
         stats: snap.stats
       })
       this.setSetting('activeBuildVersionId', String(v.id))
@@ -404,9 +411,10 @@ export class TrackerService extends EventEmitter {
     }
     const exalted = this.priceBook.get('exalted')
     const rate = exalted && exalted.value > 0 ? 1 / exalted.value : null
-    const out = computeVerdicts({ runs, build, money: (d) => formatCurrency(d, rate) })
+    const t = this.t
+    const out = computeVerdicts({ runs, build, money: (d) => formatCurrency(d, rate), t })
     // Optimisations already calculated for this build version (never computed here: it takes seconds).
-    const opt = this.optimisationCache?.versionId === this.activeVersionId() ? this.optimisationCache.value : null
+    const opt = this.cached(this.optimisationCache)
     const extra: VerdictDTO[] = []
     const swap = opt?.supports?.swaps[0]
     if (swap && swap.score >= 5) {
@@ -414,8 +422,8 @@ export class TrackerService extends EventEmitter {
         id: 'build.support-swap',
         area: 'build',
         severity: 'tip',
-        title: `Better support: ${swap.add} instead of ${swap.remove}`,
-        detail: `${swap.impact.slice(0, 2).map((l) => l.text).join(', ')} according to Path of Building.`,
+        title: t('Better support: {add} instead of {remove}', { add: swap.add, remove: swap.remove }),
+        detail: t('{effects} according to Path of Building.', { effects: swap.impact.slice(0, 2).map((l) => l.text).join(', ') }),
         tab: 'build'
       })
     }
@@ -425,8 +433,11 @@ export class TrackerService extends EventEmitter {
         id: 'build.next-point',
         area: 'build',
         severity: 'tip',
-        title: `Next passive: ${node.name} (${node.cost} point${node.cost > 1 ? 's' : ''})`,
-        detail: `${node.impact.slice(0, 2).map((l) => l.text).join(', ')} according to Path of Building.`,
+        title:
+          node.cost > 1
+            ? t('Next passive: {name} ({n} points)', { name: node.name, n: node.cost })
+            : t('Next passive: {name} ({n} point)', { name: node.name, n: node.cost }),
+        detail: t('{effects} according to Path of Building.', { effects: node.impact.slice(0, 2).map((l) => l.text).join(', ') }),
         tab: 'build'
       })
     }
@@ -463,7 +474,7 @@ export class TrackerService extends EventEmitter {
       hidden: [],
       error: null
     }
-    if (!path) return { ...base, error: 'No loot filter found. Choose your .filter file.' }
+    if (!path) return { ...base, error: this.t('No loot filter found. Choose your .filter file.') }
     try {
       const filter = this.loadFilter(path)
       const minValue = exPerDiv ? minExalted / exPerDiv : Number.POSITIVE_INFINITY
@@ -479,11 +490,37 @@ export class TrackerService extends EventEmitter {
         ...base,
         info: { ...filter.info, blocks: filter.blocks.length },
         hidden,
-        error: exPerDiv ? null : 'Prices not loaded yet'
+        error: exPerDiv ? null : this.t('Prices not loaded yet')
       }
     } catch (err) {
-      return { ...base, error: `Can't read the filter: ${err instanceof Error ? err.message : String(err)}` }
+      return { ...base, error: this.t("Can't read the filter: {error}", { error: err instanceof Error ? err.message : String(err) }) }
     }
+  }
+
+  /** Interface language: the player's choice, else the system's. */
+  getLanguage(): Lang {
+    const v = this.getSetting('language')
+    return isLang(v) ? v : this.systemLang
+  }
+
+  setLanguage(lang: Lang): void {
+    this.setSetting('language', lang)
+    this.emitStatus()
+  }
+
+  /** Translator for texts generated here (verdicts, advice, errors). */
+  get t(): Translator {
+    return translator(this.getLanguage())
+  }
+
+  /** A cached result, only if it is for the active build version and the current language. */
+  private cached<T>(c: { versionId: number; lang: Lang; value: T } | null): T | null {
+    return c && c.versionId === this.activeVersionId() && c.lang === this.getLanguage() ? c.value : null
+  }
+
+  private pobMessage(): string {
+    if (this.pobError === 'not-installed') return this.t('Path of Building engine not installed (run `npm run setup:pob`)')
+    return this.pobError ?? this.t('PoB unavailable')
   }
 
   /** Automatic update checks (GitHub Releases), on by default. */
@@ -554,7 +591,7 @@ export class TrackerService extends EventEmitter {
   async gearCheck(): Promise<Result<GearCheckDTO[]>> {
     if (!this.pob || this.activeVersionId() === null) return { ok: true, value: [] }
     await this.pobReady
-    return wrap(() => this.withPob(async () => checkGear(await this.pob!.auditItems())))
+    return wrap(() => this.withPob(async () => checkGear(await this.pob!.auditItems(), this.t)))
   }
 
   // ── Guide build ───────────────────────────────────────────────────────────
@@ -564,10 +601,10 @@ export class TrackerService extends EventEmitter {
    * the engine. The snapshot is stored per build, so the guide is only parsed once.
    */
   async setGuideBuild(input: string, name?: string): Promise<Result<GuideComparisonDTO>> {
-    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    if (!this.pob) return { ok: false, error: this.pobMessage() }
     const active = this.activeBuild()
-    if (!active) return { ok: false, error: 'Import your own build first' }
-    const resolved = await wrap(() => resolveBuildCode(input, this.fetchText))
+    if (!active) return { ok: false, error: this.t('Import your own build first') }
+    const resolved = await wrap(() => resolveBuildCode(input, this.fetchText, this.t))
     if (!resolved.ok) return resolved
     const code = resolved.value
     await this.pobReady
@@ -596,7 +633,7 @@ export class TrackerService extends EventEmitter {
     )
     if (!res.ok) return res
     const cmp = await this.guideComparison()
-    return cmp.ok && cmp.value ? { ok: true, value: cmp.value } : { ok: false, error: cmp.ok ? 'No guide' : cmp.error }
+    return cmp.ok && cmp.value ? { ok: true, value: cmp.value } : { ok: false, error: cmp.ok ? this.t('No guide') : cmp.error }
   }
 
   clearGuideBuild(): void {
@@ -691,19 +728,22 @@ export class TrackerService extends EventEmitter {
    * About 1–3 s per build version (cached).
    */
   async optimisations(): Promise<Result<OptimisationsDTO>> {
-    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    if (!this.pob) return { ok: false, error: this.pobMessage() }
     const versionId = this.activeVersionId()
-    if (versionId === null) return { ok: false, error: 'Import your build first' }
-    if (this.optimisationCache?.versionId === versionId) return { ok: true, value: this.optimisationCache.value }
+    if (versionId === null) return { ok: false, error: this.t('Import your build first') }
+    const cachedOpt = this.cached(this.optimisationCache)
+    if (cachedOpt) return { ok: true, value: cachedOpt }
+    const t = this.t
+    const lang = this.getLanguage()
     await this.pobReady
     const res = await wrap(() =>
       this.withPob(async () => {
         const treeData = await this.pob!.treeOptions(5)
-        const tree = rankTree(treeData)
+        const tree = rankTree(treeData, 5, t)
         const swaps: OptimisationsDTO['tree']['swaps'] = []
         for (const c of swapCandidates(tree.adds, tree.removes)) {
           const r = await this.pob!.treeSwap(c.add.pathIds, c.remove.ids)
-          const imp = summarizeImpact(r.diff, {})
+          const imp = summarizeImpact(r.diff, {}, t)
           if (imp.score > 0.5) {
             swaps.push({ remove: c.remove.name, removePoints: c.remove.cost, add: c.add.name, addPoints: c.add.cost, score: imp.score, impact: imp.lines })
           }
@@ -714,41 +754,41 @@ export class TrackerService extends EventEmitter {
         try {
           const priceOf = (name: string) => this.priceBook.get(name)?.value ?? null
           const first = await this.pob!.supportOptions([])
-          const ranked = rankSupports(first, priceOf)
+          const ranked = rankSupports(first, priceOf, 6, t)
           const tried = ranked.current.length ? await this.pob!.supportOptions(ranked.candidates.map((c) => c.id)) : first
           const keep = ranked.current.filter((c) => c.note !== null).map((c) => c.name)
-          supports = { ...ranked, swaps: rankSupportSwaps(tried, keep) }
+          supports = { ...ranked, swaps: rankSupportSwaps(tried, keep, 3, t) }
         } catch (err) {
           const raw = (err instanceof Error ? err.message : String(err)).replace(/^.*?\.lua:\d+:\s*/, '')
           const error = /no main skill|no active skill/i.test(raw)
-            ? 'No skill gem in your main skill group (default attack only): nothing to suggest for supports.'
+            ? t('No skill gem in your main skill group (default attack only): nothing to suggest for supports.')
             : raw
           supports = { skill: null, current: [], candidates: [], swaps: [], error }
         }
         return { tree: { points: pointsSummary(treeData), adds: tree.adds, removes: tree.removes, swaps: swaps.slice(0, 3) }, supports }
       })
     )
-    if (res.ok && this.activeVersionId() === versionId) this.optimisationCache = { versionId, value: res.value }
+    if (res.ok && this.activeVersionId() === versionId) this.optimisationCache = { versionId, lang, value: res.value }
     return res
   }
 
   /** Every equipped item, line by line, with what each line brings to the build. */
   async itemSheets(): Promise<Result<ItemSheetDTO[]>> {
-    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    if (!this.pob) return { ok: false, error: this.pobMessage() }
     if (!this.activeBuild()) return { ok: true, value: [] }
     await this.pobReady
     const res = await wrap(() => this.withPob(() => this.pob!.modImpact()))
-    return res.ok ? { ok: true, value: itemSheets(res.value) } : res
+    return res.ok ? { ok: true, value: itemSheets(res.value, this.t) } : res
   }
 
   /** Best runes / soul cores for every empty socket of the equipped gear, with poe.ninja prices. */
   async runeAdvice(): Promise<Result<RuneAdviceDTO[]>> {
-    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    if (!this.pob) return { ok: false, error: this.pobMessage() }
     if (!this.activeBuild()) return { ok: true, value: [] }
     await this.pobReady
     const res = await wrap(() => this.withPob(() => this.pob!.runeOptions()))
     if (!res.ok) return res
-    return { ok: true, value: rankRuneOptions(res.value, (name) => this.priceBook.get(name)?.value ?? null) }
+    return { ok: true, value: rankRuneOptions(res.value, (name) => this.priceBook.get(name)?.value ?? null, 5, this.t) }
   }
 
   /**
@@ -757,10 +797,13 @@ export class TrackerService extends EventEmitter {
    * A few seconds per build version (cached). `onProgress` reports slots done / total.
    */
   async upgradePriorities(onProgress?: (done: number, total: number) => void): Promise<Result<UpgradePriorityDTO[]>> {
-    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    if (!this.pob) return { ok: false, error: this.pobMessage() }
     const versionId = this.activeVersionId()
     if (versionId === null) return { ok: true, value: [] }
-    if (this.priorityCache?.versionId === versionId) return { ok: true, value: this.priorityCache.value }
+    const cachedPrio = this.cached(this.priorityCache)
+    if (cachedPrio) return { ok: true, value: cachedPrio }
+    const t = this.t
+    const lang = this.getLanguage()
     await this.pobReady
     const audit = await wrap(() => this.withPob(() => this.pob!.auditItems()))
     if (!audit.ok) return audit
@@ -795,19 +838,19 @@ export class TrackerService extends EventEmitter {
       previews.push({ slot: it.slot, item: it.name, mods: added, kept: keep, before: {}, diff: p.value.diff })
     }
     onProgress?.(items.length, items.length)
-    const value: UpgradePriorityDTO[] = rankSlots(previews).map((p) => ({
+    const value: UpgradePriorityDTO[] = rankSlots(previews, t).map((p) => ({
       ...p,
       freeAffixes: items.find((i) => i.slot === p.slot && !i.corrupted && !i.mirrored && (i.rarity === 'RARE' || i.rarity === 'MAGIC'))
         ? (free.get(p.slot) ?? 0)
         : 0
     }))
-    if (this.activeVersionId() === versionId) this.priorityCache = { versionId, value }
+    if (this.activeVersionId() === versionId) this.priorityCache = { versionId, lang, value }
     return { ok: true, value }
   }
 
   async tradeWeights(slot: string): Promise<Result<TradeWeightsDTO>> {
-    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
-    if (!this.activeBuild()) return { ok: false, error: 'Import your build first' }
+    if (!this.pob) return { ok: false, error: this.pobMessage() }
+    if (!this.activeBuild()) return { ok: false, error: this.t('Import your build first') }
     const key = `${this.activeVersionId()}|${slot}`
     const cached = this.tradeWeightCache.get(key)
     if (cached) return { ok: true, value: cached }
@@ -818,7 +861,7 @@ export class TrackerService extends EventEmitter {
   }
 
   async tradePreview(slot: string, mods: { tradeId: string; text: string; value: number }[]): Promise<Result<TradePreviewDTO>> {
-    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    if (!this.pob) return { ok: false, error: this.pobMessage() }
     await this.pobReady
     const res = await wrap(() => this.withPob(() => this.pob!.tradePreview(slot, mods)))
     return res.ok ? { ok: true, value: { slot: res.value.slot, lines: res.value.lines, diff: res.value.diff } } : res
@@ -1127,7 +1170,7 @@ export class TrackerService extends EventEmitter {
     return v ? Number(v) : null
   }
 
-  private emitStatus(): void {
+  emitStatus(): void {
     if (this.stopped) return
     this.emit('status', this.status())
   }

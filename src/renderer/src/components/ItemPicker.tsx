@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { PriceDTO } from '@shared/ipc'
-import { useMoney } from '../store'
+import { useMoney, useT } from '../store'
 
 export interface PickedItem {
   label: string
@@ -14,8 +14,9 @@ export interface PickedItem {
  * Search box over poe.ninja prices. Unknown items can still be added with a
  * manual value (e.g. waystones, which poe.ninja may not price).
  */
-export function ItemPicker({ onPick, submitLabel = 'Add' }: { onPick: (item: PickedItem) => void; submitLabel?: string }) {
+export function ItemPicker({ onPick, submitLabel }: { onPick: (item: PickedItem) => void; submitLabel?: string }) {
   const money = useMoney()
+  const t = useT()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<PriceDTO[]>([])
   const [selected, setSelected] = useState<PriceDTO | null>(null)
@@ -59,7 +60,7 @@ export function ItemPicker({ onPick, submitLabel = 'Add' }: { onPick: (item: Pic
       <div className="flex gap-2">
         <input
           className="min-w-0 flex-1 rounded-md border border-stone-800 bg-stone-950 px-2 py-1 text-sm outline-none focus:border-ember-500"
-          placeholder="Item (Divine Orb, Breach Splinter…)"
+          placeholder={t('Item (Divine Orb, Breach Splinter…)')}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value)
@@ -68,7 +69,7 @@ export function ItemPicker({ onPick, submitLabel = 'Add' }: { onPick: (item: Pic
           onKeyDown={(e) => e.key === 'Enter' && submit()}
         />
         <input
-          aria-label="Quantity"
+          aria-label={t('Quantity')}
           className="w-14 rounded-md border border-stone-800 bg-stone-950 px-2 py-1 text-right text-sm tabular-nums outline-none focus:border-ember-500"
           value={qty}
           onChange={(e) => setQty(e.target.value)}
@@ -76,8 +77,8 @@ export function ItemPicker({ onPick, submitLabel = 'Add' }: { onPick: (item: Pic
         />
         {!selected && (
           <input
-            aria-label="Value in divine"
-            title="Value per unit in Divine, if the item has no market price"
+            aria-label={t('Value in divine')}
+            title={t('Value per unit in Divine, if the item has no market price')}
             className="w-20 rounded-md border border-stone-800 bg-stone-950 px-2 py-1 text-right text-sm tabular-nums outline-none focus:border-ember-500"
             placeholder="div/u"
             value={manual}
@@ -91,7 +92,7 @@ export function ItemPicker({ onPick, submitLabel = 'Add' }: { onPick: (item: Pic
           disabled={!valid}
           onClick={submit}
         >
-          {submitLabel}
+          {submitLabel ?? t('Add')}
         </button>
       </div>
       {results.length > 0 && (

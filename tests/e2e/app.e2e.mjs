@@ -47,7 +47,7 @@ mkdirSync(filterDir)
 copyFileSync(join(ROOT, 'tests/fixtures/filters/neversink-6-uber-plus-strict.filter'), join(filterDir, 'NeverSink Uber Plus.filter'))
 writeFileSync(join(filterDir, 'poe2_production_Config.ini'), 'item_filter=NeverSink Uber Plus.filter\n')
 // No update check against GitHub during tests.
-const env = { ...process.env, POE2_CLIENT_LOG: logPath, POE2_FILTER_DIR: filterDir, POE2_NO_UPDATES: '1' }
+const env = { ...process.env, POE2_CLIENT_LOG: logPath, POE2_FILTER_DIR: filterDir, POE2_NO_UPDATES: '1', POE2_LANG: 'en' }
 if (packaged) delete env.POB_ENGINE_DIR
 const app = await electron.launch({ args, env, ...(packaged ? { executablePath: packaged } : {}) })
 const win = await app.firstWindow()
@@ -347,6 +347,23 @@ try {
   const text = await history.innerText()
   if (!text.includes('1 kill / 1') || !text.includes('Rush maps')) fail(`sessions: ${text}`)
   await win.screenshot({ path: join(SHOTS, 'screenshot-sessions.png') })
+
+  step('Settings: switch the interface to French, then back to English')
+  await win.getByRole('button', { name: 'Settings' }).click()
+  const settings = win.getByRole('dialog', { name: 'Settings' })
+  await settings.getByLabel('Language').selectOption('fr')
+  await win.getByRole('tab', { name: 'Tableau de bord' }).waitFor({ timeout: 5_000 })
+  await win.getByRole('dialog', { name: 'Réglages' }).getByText('Mises à jour automatiques').waitFor({ timeout: 5_000 })
+  await win.keyboard.press('Escape')
+  await win.getByRole('tab', { name: 'Tableau de bord' }).click()
+  await win.getByText('Profit aujourd’hui').or(win.getByText("Profit aujourd'hui")).first().waitFor({ timeout: 5_000 })
+  await win.getByRole('tab', { name: 'Build' }).click()
+  await win.getByText('Résistances', { exact: true }).first().waitFor({ timeout: 10_000 })
+  await win.screenshot({ path: join(SHOTS, 'screenshot-fr.png') })
+  await win.getByRole('button', { name: 'Réglages' }).click()
+  await win.getByRole('dialog', { name: 'Réglages' }).getByLabel('Langue').selectOption('en')
+  await win.getByRole('tab', { name: 'Dashboard' }).waitFor({ timeout: 5_000 })
+  await win.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: 'Close' }).click()
 
   console.log(process.exitCode ? 'E2E FAILED' : 'E2E OK')
 } catch (err) {

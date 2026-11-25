@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { LootFilterDTO } from '@shared/ipc'
 import { Button, Card } from './Card'
-import { useMoney, useTracker } from '../store'
+import { useMoney, useT, useTracker } from '../store'
 
 const THRESHOLDS = [0.5, 1, 5, 20] as const
 
@@ -11,6 +11,7 @@ const THRESHOLDS = [0.5, 1, 5, 20] as const
  */
 export function LootFilterPanel() {
   const money = useMoney()
+  const t = useT()
   const priceCount = useTracker((s) => s.status?.prices.count ?? 0)
   const [data, setData] = useState<LootFilterDTO | null>(null)
   const [min, setMin] = useState<number>(1)
@@ -25,17 +26,17 @@ export function LootFilterPanel() {
 
   return (
     <Card
-      title="Loot filter"
+      title={t('Loot filter')}
       actions={
         <div className="flex items-center gap-2">
           {data && data.candidates.length > 1 && (
             <select
-              aria-label="Filter file"
+              aria-label={t('Filter file')}
               className="rounded-md border border-stone-700 bg-stone-900 px-2 py-1 text-sm"
               value={data.auto ? '' : (data.path ?? '')}
               onChange={(e) => reload(window.tracker.setLootFilter(e.target.value || null))}
             >
-              <option value="">Automatic</option>
+              <option value="">{t('Automatic')}</option>
               {data.candidates.map((c) => (
                 <option key={c.path} value={c.path}>
                   {c.name}
@@ -44,25 +45,26 @@ export function LootFilterPanel() {
             </select>
           )}
           <Button variant="ghost" onClick={() => reload(window.tracker.browseLootFilter())}>
-            Choose file…
+            {t('Choose file…')}
           </Button>
           {data?.enabled && (
             <Button variant="ghost" onClick={() => reload(window.tracker.disableLootFilter())}>
-              Stop
+              {t('Stop')}
             </Button>
           )}
         </div>
       }
     >
       {!data ? (
-        <p className="text-sm text-stone-500">Loading…</p>
+        <p className="text-sm text-stone-500">{t('Loading…')}</p>
       ) : !data.enabled ? (
         <div className="space-y-3 text-sm text-stone-400">
           <p>
-            Find the valuable items your loot filter hides. The app reads your .filter file once, on your computer
-            (nothing is sent anywhere, the filter is never changed).
+            {t(
+              'Find the valuable items your loot filter hides. The app reads your .filter file once, on your computer (nothing is sent anywhere, the filter is never changed).'
+            )}
           </p>
-          <Button onClick={() => reload(window.tracker.setLootFilter(null))}>Analyse my loot filter</Button>
+          <Button onClick={() => reload(window.tracker.setLootFilter(null))}>{t('Analyse my loot filter')}</Button>
         </div>
       ) : (
         <div className="space-y-3 text-sm">
@@ -73,42 +75,44 @@ export function LootFilterPanel() {
                 {data.info?.type ? ` · ${data.info.type}` : ''}
                 {data.info?.version ? ` · v${data.info.version}` : ''}
               </span>{' '}
-              {data.auto ? '(detected automatically)' : '(chosen)'} · evaluated for area level {data.areaLevel}
+              {data.auto ? t('(detected automatically)') : t('(chosen)')} · {t('evaluated for area level {level}', { level: data.areaLevel })}
             </p>
           )}
           {data.error && <p className="text-amber-400">{data.error}</p>}
           {data.path && !data.error && (
             <>
               <div className="flex items-center gap-2 text-stone-400">
-                Hidden items worth at least
-                {THRESHOLDS.map((t) => (
+                {t('Hidden items worth at least')}
+                {THRESHOLDS.map((x) => (
                   <button
-                    key={t}
+                    key={x}
                     type="button"
-                    aria-pressed={min === t}
-                    className={`rounded px-2 py-0.5 ${min === t ? 'bg-stone-700 text-stone-100' : 'hover:text-stone-200'}`}
-                    onClick={() => setMin(t)}
+                    aria-pressed={min === x}
+                    className={`rounded px-2 py-0.5 ${min === x ? 'bg-stone-700 text-stone-100' : 'hover:text-stone-200'}`}
+                    onClick={() => setMin(x)}
                   >
-                    {t} ex
+                    {x} ex
                   </button>
                 ))}
               </div>
               {data.hidden.length === 0 ? (
-                <p className="text-emerald-400">Your filter shows everything worth {min} ex or more.</p>
+                <p className="text-emerald-400">{t('Your filter shows everything worth {min} ex or more.', { min })}</p>
               ) : (
                 <>
                   <p className="text-stone-300">
-                    Your filter hides <strong>{data.hidden.length}</strong> item type{data.hidden.length > 1 ? 's' : ''} worth{' '}
-                    {min} ex or more. Lower the strictness or show them in FilterBlade if you want to pick them up.
+                    {data.hidden.length > 1
+                      ? t('Your filter hides {n} item types worth {min} ex or more.', { n: data.hidden.length, min })
+                      : t('Your filter hides {n} item type worth {min} ex or more.', { n: data.hidden.length, min })}{' '}
+                    {t('Lower the strictness or show them in FilterBlade if you want to pick them up.')}
                   </p>
-                  <ul className="divide-y divide-stone-800 rounded-md border border-stone-800" aria-label="Hidden valuable items">
+                  <ul className="divide-y divide-stone-800 rounded-md border border-stone-800" aria-label={t('Hidden valuable items')}>
                     {shown!.map((h) => (
                       <li key={h.name} className="flex items-center justify-between px-3 py-1.5">
                         <span>
                           {h.name}
                           {h.uncertain && (
-                            <span className="ml-2 text-xs text-stone-500" title="Depends on details the app can't know (item level…)">
-                              probably
+                            <span className="ml-2 text-xs text-stone-500" title={t("Depends on details the app can't know (item level…)")}>
+                              {t('probably')}
                             </span>
                           )}
                         </span>
@@ -118,7 +122,7 @@ export function LootFilterPanel() {
                   </ul>
                   {data.hidden.length > 8 && (
                     <Button variant="ghost" onClick={() => setShowAll(!showAll)}>
-                      {showAll ? 'Show less' : `Show all ${data.hidden.length}`}
+                      {showAll ? t('Show less') : t('Show all {n}', { n: data.hidden.length })}
                     </Button>
                   )}
                 </>

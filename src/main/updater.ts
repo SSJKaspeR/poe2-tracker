@@ -28,7 +28,7 @@ export class Updater extends EventEmitter {
   constructor(
     private readonly updater: AutoUpdaterLike,
     currentVersion: string,
-    private readonly opts: { enabled: boolean; log?: (msg: string) => void }
+    private readonly opts: { enabled: boolean; allowed?: boolean; log?: (msg: string) => void }
   ) {
     super()
     this.state = { status: opts.enabled ? 'idle' : 'disabled', current: currentVersion, available: null, progress: null, error: null }
@@ -58,6 +58,20 @@ export class Updater extends EventEmitter {
     if (!this.opts.enabled || this.timer) return
     void this.check()
     this.timer = setInterval(() => void this.check(), CHECK_EVERY_MS)
+  }
+
+  /** The player turned automatic updates on or off (only where updates are possible). */
+  setEnabled(on: boolean): void {
+    const allowed = this.opts.allowed ?? true
+    if (on && allowed && !this.opts.enabled) {
+      this.opts.enabled = true
+      this.set({ status: 'idle' })
+      this.start()
+    } else if (!on && this.opts.enabled) {
+      this.stop()
+      this.opts.enabled = false
+      if (this.state.status !== 'ready') this.set({ status: 'disabled', error: null })
+    }
   }
 
   stop(): void {

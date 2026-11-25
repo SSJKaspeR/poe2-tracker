@@ -94,8 +94,19 @@ export const EXTRA_STAT_LABELS: Record<string, string> = {
   Int: 'Intelligence'
 }
 
-export function statLabel(key: string): string {
-  return STAT_LABELS[key] ?? EXTRA_STAT_LABELS[key] ?? key
+/**
+ * Stat name in the interface language. The English texts above are translation keys
+ * (checked by tests/unit/i18n.test.ts like every t('…') text).
+ */
+export function statLabel(key: string, t: (text: string) => string = (x) => x): string {
+  const en = STAT_LABELS[key] ?? EXTRA_STAT_LABELS[key]
+  return en ? t(en) : key
+}
+
+/** Hover help in the interface language (undefined when there is none). */
+export function statHelp(key: string, t: (text: string) => string = (x) => x): string | undefined {
+  const en = STAT_HELP[key]
+  return en ? t(en) : undefined
 }
 
 /** Stats where a lower value is better. */

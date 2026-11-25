@@ -4,20 +4,17 @@ import { Card } from '../components/Card'
 import { ItemPicker } from '../components/ItemPicker'
 import { LootFilterPanel } from '../components/LootFilterPanel'
 import { formatDuration } from '../format'
-import { useMoney, useTracker } from '../store'
+import { useMoney, useT, useTracker } from '../store'
 
-const PERIODS = [
-  { label: 'Today', days: 1 },
-  { label: '7 days', days: 7 },
-  { label: '30 days', days: 30 },
-  { label: 'All', days: null }
-] as const
+const PERIODS = [1, 7, 30, null] as const
 
-type Period = (typeof PERIODS)[number]['days']
+type Period = (typeof PERIODS)[number]
 
 export function MapsPage() {
   const status = useTracker((s) => s.status)
   const money = useMoney()
+  const t = useT()
+  const periodLabel = (d: Period) => (d === 1 ? t('Today') : d === 7 ? t('7 days') : d === 30 ? t('30 days') : t('All'))
   const [period, setPeriod] = useState<Period>(7)
   const [runs, setRuns] = useState<RunDetailDTO[]>([])
   const [openId, setOpenId] = useState<string | null>(null)
@@ -32,60 +29,63 @@ export function MapsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2" role="tablist" aria-label="Period">
+      <div className="flex items-center gap-2" role="tablist" aria-label={t('Period')}>
         {PERIODS.map((p) => (
           <button
-            key={p.label}
+            key={String(p)}
             type="button"
             role="tab"
-            aria-selected={period === p.days}
-            className={`rounded-md px-3 py-1 text-sm ${period === p.days ? 'bg-stone-800 text-stone-100' : 'text-stone-400 hover:text-stone-200'}`}
-            onClick={() => setPeriod(p.days)}
+            aria-selected={period === p}
+            className={`rounded-md px-3 py-1 text-sm ${period === p ? 'bg-stone-800 text-stone-100' : 'text-stone-400 hover:text-stone-200'}`}
+            onClick={() => setPeriod(p)}
           >
-            {p.label}
+            {periodLabel(p)}
           </button>
         ))}
       </div>
 
       <div className="grid grid-cols-4 gap-3 xl:grid-cols-8">
-        <Tile label="Maps" value={String(totals.count)} />
-        <Tile label="Time in maps" value={formatDuration(totals.activeMs)} />
-        <Tile label="Avg / map" value={totals.count ? formatDuration(totals.activeMs / totals.count) : '—'} />
-        <Tile label="Deaths / map" value={totals.count ? (totals.deaths / totals.count).toFixed(2) : '—'} />
-        <Tile label="Invested" value={money(totals.invested)} />
-        <Tile label="Loot" value={totals.withLoot ? money(totals.looted) : '—'} />
+        <Tile label={t('Maps')} value={String(totals.count)} />
+        <Tile label={t('Time in maps')} value={formatDuration(totals.activeMs)} />
+        <Tile label={t('Avg / map')} value={totals.count ? formatDuration(totals.activeMs / totals.count) : '—'} />
+        <Tile label={t('Deaths / map')} value={totals.count ? (totals.deaths / totals.count).toFixed(2) : '—'} />
+        <Tile label={t('Invested')} value={money(totals.invested)} />
+        <Tile label={t('Loot')} value={totals.withLoot ? money(totals.looted) : '—'} />
         <Tile
-          label="Profit"
+          label={t('Profit')}
           value={totals.withLoot ? money(totals.looted - totals.invested, { sign: true }) : '—'}
           tone={totals.withLoot ? (totals.looted >= totals.invested ? 'good' : 'bad') : undefined}
         />
         <Tile
-          label="Profit / hour"
+          label={t('Profit / hour')}
           value={totals.withLoot && totals.activeMs ? money(((totals.looted - totals.invested) / totals.activeMs) * 3_600_000, { sign: true }) : '—'}
         />
       </div>
       {totals.count > 0 && totals.withLoot < totals.count && (
         <p className="text-xs text-stone-500">
-          Loot declared on {totals.withLoot} of {totals.count} maps — maps without loot count as zero in profit.
+          {t('Loot declared on {n} of {total} maps — maps without loot count as zero in profit.', {
+            n: totals.withLoot,
+            total: totals.count
+          })}
         </p>
       )}
 
-      <Card title="Runs">
+      <Card title={t('Runs')}>
         {runs.length === 0 ? (
-          <p className="text-sm text-stone-500">No completed map in this period.</p>
+          <p className="text-sm text-stone-500">{t('No completed map in this period.')}</p>
         ) : (
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-stone-500">
               <tr>
-                <th className="pb-2 font-normal">When</th>
-                <th className="pb-2 font-normal">Map</th>
-                <th className="pb-2 text-right font-normal">Lvl</th>
-                <th className="pb-2 text-right font-normal">Time</th>
-                <th className="pb-2 text-right font-normal">Deaths</th>
-                <th className="pb-2 pl-4 font-normal">Strategy</th>
-                <th className="pb-2 text-right font-normal">Invested</th>
-                <th className="pb-2 text-right font-normal">Loot</th>
-                <th className="pb-2 text-right font-normal">Profit</th>
+                <th className="pb-2 font-normal">{t('When')}</th>
+                <th className="pb-2 font-normal">{t('Map')}</th>
+                <th className="pb-2 text-right font-normal">{t('Lvl')}</th>
+                <th className="pb-2 text-right font-normal">{t('Time')}</th>
+                <th className="pb-2 text-right font-normal">{t('Deaths')}</th>
+                <th className="pb-2 pl-4 font-normal">{t('Strategy')}</th>
+                <th className="pb-2 text-right font-normal">{t('Invested')}</th>
+                <th className="pb-2 text-right font-normal">{t('Loot')}</th>
+                <th className="pb-2 text-right font-normal">{t('Profit')}</th>
               </tr>
             </thead>
             <tbody>
@@ -105,7 +105,7 @@ export function MapsPage() {
                           <span
                             className={`ml-2 text-xs ${r.outcome === 'kill' ? 'text-emerald-400' : r.outcome === 'fail' ? 'text-red-400' : 'text-stone-500'}`}
                           >
-                            {r.outcome === 'kill' ? 'boss killed' : r.outcome === 'fail' ? 'boss failed' : 'boss'}
+                            {r.outcome === 'kill' ? t('boss killed') : r.outcome === 'fail' ? t('boss failed') : t('boss')}
                           </span>
                         )}
                       </td>
@@ -135,15 +135,15 @@ export function MapsPage() {
       </Card>
 
       {byMap.length > 1 && (
-        <Card title="By map">
+        <Card title={t('By map')}>
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-stone-500">
               <tr>
-                <th className="pb-2 font-normal">Map</th>
-                <th className="pb-2 text-right font-normal">Runs</th>
-                <th className="pb-2 text-right font-normal">Avg time</th>
-                <th className="pb-2 text-right font-normal">Deaths / map</th>
-                <th className="pb-2 text-right font-normal">Avg profit</th>
+                <th className="pb-2 font-normal">{t('Map')}</th>
+                <th className="pb-2 text-right font-normal">{t('Runs')}</th>
+                <th className="pb-2 text-right font-normal">{t('Avg time')}</th>
+                <th className="pb-2 text-right font-normal">{t('Deaths / map')}</th>
+                <th className="pb-2 text-right font-normal">{t('Avg profit')}</th>
               </tr>
             </thead>
             <tbody>
@@ -170,6 +170,13 @@ export function MapsPage() {
 
 function RunDetail({ run }: { run: RunDetailDTO }) {
   const money = useMoney()
+  const t = useT()
+  const endReason: Record<string, string> = {
+    new_map: t('next map'),
+    timeout: t('time out of the map'),
+    game_restart: t('game restart'),
+    manual: t('manual')
+  }
   const [lines, setLines] = useState<RunLinesDTO | null>(null)
   useEffect(() => {
     void window.tracker.getRunLines(run.id).then(setLines)
@@ -179,29 +186,29 @@ function RunDetail({ run }: { run: RunDetailDTO }) {
     <div className="grid grid-cols-3 gap-6 text-sm">
       <div className="space-y-1 text-stone-400">
         <div>
-          Started <span className="text-stone-200">{new Date(run.startedAt).toLocaleString()}</span>
+          {t('Started')} <span className="text-stone-200">{new Date(run.startedAt).toLocaleString()}</span>
         </div>
         <div>
-          In map <span className="text-stone-200">{formatDuration(run.activeMs)}</span>
+          {t('In map')} <span className="text-stone-200">{formatDuration(run.activeMs)}</span>
           {run.endedAt && (
             <span className="text-stone-500">
               {' '}
-              (wall clock {formatDuration(new Date(run.endedAt).getTime() - new Date(run.startedAt).getTime())})
+              ({t('wall clock {time}', { time: formatDuration(new Date(run.endedAt).getTime() - new Date(run.startedAt).getTime()) })})
             </span>
           )}
         </div>
         <div>
-          Portal re-entries <span className="text-stone-200">{run.reentries}</span>
+          {t('Portal re-entries')} <span className="text-stone-200">{run.reentries}</span>
         </div>
         <div>
-          Build <span className="text-stone-200">{run.versionLabel ?? '—'}</span>
+          {t('Build')} <span className="text-stone-200">{run.versionLabel ?? '—'}</span>
         </div>
         <div>
-          Ended by <span className="text-stone-200">{END_REASON[run.endReason ?? ''] ?? run.endReason ?? '—'}</span>
+          {t('Ended by')} <span className="text-stone-200">{endReason[run.endReason ?? ''] ?? run.endReason ?? '—'}</span>
         </div>
       </div>
       <div>
-        <div className="mb-1 text-xs uppercase tracking-wide text-stone-500">Invested</div>
+        <div className="mb-1 text-xs uppercase tracking-wide text-stone-500">{t('Invested')}</div>
         {lines?.investments.length ? (
           <ul className="space-y-0.5">
             {lines.investments.map((l) => (
@@ -209,16 +216,16 @@ function RunDetail({ run }: { run: RunDetailDTO }) {
                 <span>
                   {l.quantity} × {l.label}
                 </span>
-                <span className="tabular-nums text-stone-400">{l.unitValue === null ? 'no price' : money(l.unitValue * l.quantity)}</span>
+                <span className="tabular-nums text-stone-400">{l.unitValue === null ? t('no price') : money(l.unitValue * l.quantity)}</span>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-stone-500">Nothing declared.</p>
+          <p className="text-stone-500">{t('Nothing declared.')}</p>
         )}
       </div>
       <div>
-        <div className="mb-1 text-xs uppercase tracking-wide text-stone-500">Loot</div>
+        <div className="mb-1 text-xs uppercase tracking-wide text-stone-500">{t('Loot')}</div>
         {lines?.loot.length ? (
           <ul className="mb-2 space-y-0.5">
             {lines.loot.map((l) => (
@@ -227,10 +234,10 @@ function RunDetail({ run }: { run: RunDetailDTO }) {
                   {l.quantity} × {l.label}
                 </span>
                 <span className="flex gap-2 tabular-nums text-stone-400">
-                  {l.unitValue === null ? 'no price' : money(l.unitValue * l.quantity)}
+                  {l.unitValue === null ? t('no price') : money(l.unitValue * l.quantity)}
                   <button
                     type="button"
-                    aria-label={`Remove ${l.label}`}
+                    aria-label={t('Remove {item}', { item: l.label })}
                     className="text-stone-600 hover:text-red-400"
                     onClick={() => void window.tracker.removeLine(run.id, 'loot', l.id).then(setLines)}
                   >
@@ -241,7 +248,7 @@ function RunDetail({ run }: { run: RunDetailDTO }) {
             ))}
           </ul>
         ) : (
-          <p className="mb-2 text-stone-500">Nothing declared.</p>
+          <p className="mb-2 text-stone-500">{t('Nothing declared.')}</p>
         )}
         <ItemPicker onPick={(item) => void window.tracker.addLoot(run.id, item).then(setLines)} />
       </div>
@@ -249,12 +256,6 @@ function RunDetail({ run }: { run: RunDetailDTO }) {
   )
 }
 
-const END_REASON: Record<string, string> = {
-  new_map: 'next map',
-  timeout: 'time out of the map',
-  game_restart: 'game restart',
-  manual: 'manual'
-}
 
 function Tile({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'bad' }) {
   const color = tone === 'good' ? 'text-emerald-400' : tone === 'bad' ? 'text-red-400' : 'text-stone-100'
@@ -285,13 +286,13 @@ interface Totals {
 
 function summarise(runs: RunDetailDTO[]): Totals {
   return runs.reduce<Totals>(
-    (t, r) => ({
-      count: t.count + 1,
-      activeMs: t.activeMs + r.activeMs,
-      deaths: t.deaths + r.deaths,
-      invested: t.invested + r.invested,
-      looted: t.looted + r.looted,
-      withLoot: t.withLoot + (r.hasLoot ? 1 : 0)
+    (acc, r) => ({
+      count: acc.count + 1,
+      activeMs: acc.activeMs + r.activeMs,
+      deaths: acc.deaths + r.deaths,
+      invested: acc.invested + r.invested,
+      looted: acc.looted + r.looted,
+      withLoot: acc.withLoot + (r.hasLoot ? 1 : 0)
     }),
     { count: 0, activeMs: 0, deaths: 0, invested: 0, looted: 0, withLoot: 0 }
   )

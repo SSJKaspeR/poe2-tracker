@@ -41,6 +41,7 @@ const api: TrackerApi = {
   setLootFilter: (path) => ipcRenderer.invoke('filter:set', path),
   browseLootFilter: () => ipcRenderer.invoke('filter:browse'),
   disableLootFilter: () => ipcRenderer.invoke('filter:disable'),
+  setLanguage: (lang) => ipcRenderer.invoke('settings:language', lang),
   readClipboardOnce: () => ipcRenderer.invoke('clipboard:read-once'),
   setCompareHotkey: (accelerator) => ipcRenderer.invoke('hotkey:set', accelerator),
   onHotkeyMiss: (listener) => subscribe<'not-item' | 'not-gear'>('hotkey:miss', listener),

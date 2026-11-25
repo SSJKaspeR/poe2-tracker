@@ -4,6 +4,7 @@
  * else (clear speed, utility) is pointed out, not judged.
  */
 import { costWarnings, summarizeImpact, unspentPoints, type ImpactLine } from '../../shared/impact'
+import { en, type Translator } from '../../shared/i18n'
 import type { SupportOptions, TreeOptions } from '../pob/PobBridge'
 
 export interface TreeAdd {
@@ -45,11 +46,11 @@ export function pointsSummary(data: TreeOptions): PointsSummary {
 }
 
 /** Best next points per point spent, and the allocated points that bring the least. */
-export function rankTree(data: TreeOptions, top = 5): { adds: TreeAdd[]; removes: TreeRemove[] } {
+export function rankTree(data: TreeOptions, top = 5, t: Translator = en): { adds: TreeAdd[]; removes: TreeRemove[] } {
   const seen = new Set<string>()
   const adds = data.adds
     .map((a) => {
-      const imp = summarizeImpact(a.diff, data.before)
+      const imp = summarizeImpact(a.diff, data.before, t)
       return {
         id: a.id,
         name: a.name,
@@ -77,7 +78,7 @@ export function rankTree(data: TreeOptions, top = 5): { adds: TreeAdd[]; removes
   const removes = data.removes
     .map((r) => {
       // diff goes from "now" to "without": a loss shows as a negative score.
-      const imp = summarizeImpact(r.diff, data.before)
+      const imp = summarizeImpact(r.diff, data.before, t)
       return {
         id: r.id,
         name: r.name,
@@ -148,17 +149,19 @@ export interface SupportSwap {
 export function rankSupports(
   data: SupportOptions,
   priceOf: (name: string) => number | null,
-  top = 6
+  top = 6,
+  t: Translator = en
 ): { skill: string | null; current: CurrentSupport[]; candidates: SupportCandidate[] } {
   const current = data.current.map((c) => {
     // diff goes from "without" to "with": what the support brings.
-    const imp = summarizeImpact(c.diff, data.before)
+    const imp = summarizeImpact(c.diff, data.before, t)
     let note: string | null = null
     if (imp.score < -0.5) {
-      note =
+      note = t(
         "Lowers Path of Building's single-target damage. Keep it if it helps you otherwise (more projectiles or area for clearing, utility)."
+      )
     } else if (imp.lines.length === 0) {
-      note = "No effect on Path of Building's numbers: it may help in ways PoB doesn't measure (clear, utility), or not at all."
+      note = t("No effect on Path of Building's numbers: it may help in ways PoB doesn't measure (clear, utility), or not at all.")
     }
     return { name: c.name, score: imp.score, impact: imp.lines, note }
   })
@@ -168,7 +171,7 @@ export function rankSupports(
     data.current.find((cur) => families(cur.family).some((x) => families(f).includes(x)))?.name ?? null
   const byFamily = new Map<string, SupportCandidate>()
   for (const c of data.candidates) {
-    const imp = summarizeImpact(c.diff, data.before)
+    const imp = summarizeImpact(c.diff, data.before, t)
     if (imp.score <= 0.5 || imp.lines.length === 0) continue
     const cand: SupportCandidate = {
       id: c.id,
@@ -180,7 +183,7 @@ export function rankSupports(
       score: imp.score,
       impact: imp.lines,
       replaces: sameFamily(c.family),
-      costs: costWarnings(data.before, c.diff)
+      costs: costWarnings(data.before, c.diff, t)
     }
     // Supports of one family don't stack: keep the best of each.
     const key = c.family ?? c.name
@@ -196,15 +199,15 @@ export function rankSupports(
  * Supports whose value PoB can't see (`keep`: they lower or don't change its numbers, e.g.
  * Multishot for clearing) are never proposed for replacement: their note explains it.
  */
-export function rankSupportSwaps(data: SupportOptions, keep: string[] = [], top = 3): SupportSwap[] {
+export function rankSupportSwaps(data: SupportOptions, keep: string[] = [], top = 3, t: Translator = en): SupportSwap[] {
   const best = new Map<string, SupportSwap>()
   for (const s of data.swaps) {
     if (keep.includes(s.remove)) continue
-    const imp = summarizeImpact(s.diff, data.before)
+    const imp = summarizeImpact(s.diff, data.before, t)
     if (imp.score <= 0.5) continue
     const prev = best.get(s.add)
     if (!prev || imp.score > prev.score) {
-      best.set(s.add, { remove: s.remove, add: s.add, score: imp.score, impact: imp.lines, costs: costWarnings(data.before, s.diff) })
+      best.set(s.add, { remove: s.remove, add: s.add, score: imp.score, impact: imp.lines, costs: costWarnings(data.before, s.diff, t) })
     }
   }
   return [...best.values()].sort((a, b) => b.score - a.score).slice(0, top)

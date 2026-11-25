@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TradePreviewDTO, TradeWeightsDTO } from '@shared/ipc'
 import { defaultChoices, previewMods, tradeSearchUrl, type StatChoice, type StatMode } from '@shared/trade'
-import { STAT_LABELS, isImprovement } from '../format'
-import { useTracker } from '../store'
+import { isImprovement, statLabel } from '../format'
+import { useT, useTracker } from '../store'
+import type { Translator } from '@shared/i18n'
 import { Button, Card } from './Card'
 
-const MODES: { id: StatMode; label: string; title: string }[] = [
-  { id: 'weighted', label: 'Use', title: 'Counts in the score: better rolls rank first' },
-  { id: 'required', label: 'Must have', title: 'The item must have this stat (with a minimum)' },
-  { id: 'excluded', label: 'Exclude', title: 'Never show items with this stat' },
-  { id: 'off', label: 'Off', title: 'Ignored' }
-]
+function statModes(t: Translator): { id: StatMode; label: string; title: string }[] {
+  return [
+    { id: 'weighted', label: t('Use'), title: t('Counts in the score: better rolls rank first') },
+    { id: 'required', label: t('Must have'), title: t('The item must have this stat (with a minimum)') },
+    { id: 'excluded', label: t('Exclude'), title: t('Never show items with this stat') },
+    { id: 'off', label: t('Ignore'), title: t('Ignored') }
+  ]
+}
 
 const PREVIEW_STATS = ['CombinedDPS', 'Life', 'EnergyShield', 'TotalEHP', 'Spirit', 'Armour', 'Evasion', 'FireResist', 'ColdResist', 'LightningResist', 'ChaosResist', 'EffectiveMovementSpeedMod']
 
@@ -32,6 +35,8 @@ function withValue(text: string, value: number): string {
  */
 export function TradeUpgrade({ slot, slots, onSlot }: { slot: string | null; slots: string[]; onSlot: (s: string) => void }) {
   const status = useTracker((s) => s.status)
+  const t = useT()
+  const MODES = statModes(t)
   const league = status?.league ?? 'Standard'
   const versionId = status?.build?.versionId
   const [data, setData] = useState<TradeWeightsDTO | null>(null)
@@ -77,10 +82,10 @@ export function TradeUpgrade({ slot, slots, onSlot }: { slot: string | null; slo
       setPreview(null)
       return
     }
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       void window.tracker.previewTradeItem(slot, mods).then((r) => setPreview(r.ok ? r.value : null))
     }, 300)
-    return () => clearTimeout(t)
+    return () => clearTimeout(timer)
   }, [slot, mods])
 
   const best = Math.max(1, ...choices.map((c) => c.score))
@@ -114,32 +119,33 @@ export function TradeUpgrade({ slot, slots, onSlot }: { slot: string | null; slo
 
   return (
     <div ref={cardRef}>
-      <Card title="Find an upgrade on trade">
+      <Card title={t('Find an upgrade on trade')}>
         <div className="mb-3 flex items-center gap-2 text-sm">
-          <span className="text-stone-500">Slot</span>
+          <span className="text-stone-500">{t('Slot')}</span>
           <select
-            aria-label="Slot to upgrade"
+            aria-label={t('Slot to upgrade')}
             className="rounded-md border border-stone-800 bg-stone-950 px-2 py-1 outline-none focus:border-ember-500"
             value={slot ?? ''}
             onChange={(e) => e.target.value && onSlot(e.target.value)}
           >
-            <option value="">— choose —</option>
+            <option value="">{t('— choose —')}</option>
             {slots.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
             ))}
           </select>
-          <span className="text-xs text-stone-500">League: {league}</span>
+          <span className="text-xs text-stone-500">{t('League: {league}', { league })}</span>
         </div>
 
         {!slot && (
           <p className="text-sm text-stone-500">
-            Pick a slot: PoB tests every stat that can roll there on your build, then you open a ready-made search on the official trade
-            site.
+            {t(
+              'Pick a slot: PoB tests every stat that can roll there on your build, then you open a ready-made search on the official trade site.'
+            )}
           </p>
         )}
-        {loading && <p className="text-sm text-stone-400">PoB is testing every stat for this slot…</p>}
+        {loading && <p className="text-sm text-stone-400">{t('PoB is testing every stat for this slot…')}</p>}
         {error && <p className="text-sm text-red-400">{error}</p>}
 
         {data && (
@@ -147,8 +153,8 @@ export function TradeUpgrade({ slot, slots, onSlot }: { slot: string | null; slo
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-stone-500">
                 <tr>
-                  <th className="pb-1 font-normal">Stat (tested value)</th>
-                  <th className="w-28 pb-1 font-normal">Impact</th>
+                  <th className="pb-1 font-normal">{t('Stat (tested value)')}</th>
+                  <th className="w-28 pb-1 font-normal">{t('Impact')}</th>
                   <th className="pb-1 font-normal" />
                 </tr>
               </thead>
@@ -158,10 +164,10 @@ export function TradeUpgrade({ slot, slots, onSlot }: { slot: string | null; slo
                   <tr key={c.tradeId} className={`border-t border-stone-800/60 ${c.mode === 'off' ? 'opacity-50' : ''}`}>
                     <td className="py-1 pr-2">
                       {withValue(c.text, c.mode === 'required' && c.min !== undefined ? c.min : c.typical)}
-                      {c.tradeId.startsWith('implicit.') && <span className="ml-1 text-xs text-stone-500">(implicit)</span>}
+                      {c.tradeId.startsWith('implicit.') && <span className="ml-1 text-xs text-stone-500">{t('(implicit)')}</span>}
                     </td>
                     <td className="py-1 pr-2">
-                      <div className="h-1.5 w-full rounded bg-stone-800" title={`PoB score ${Math.round(c.score)}`}>
+                      <div className="h-1.5 w-full rounded bg-stone-800" title={t('PoB score {score}', { score: Math.round(c.score) })}>
                         <div className="h-1.5 rounded bg-ember-500" style={{ width: `${Math.max(3, (c.score / best) * 100)}%` }} />
                       </div>
                     </td>
@@ -169,7 +175,7 @@ export function TradeUpgrade({ slot, slots, onSlot }: { slot: string | null; slo
                       <div className="flex items-center justify-end gap-1">
                         {c.mode === 'required' && (
                           <input
-                            aria-label={`Minimum for ${c.text}`}
+                            aria-label={t('Minimum for {stat}', { stat: c.text })}
                             className="w-14 rounded border border-stone-700 bg-stone-950 px-1 text-right text-xs tabular-nums outline-none"
                             value={c.min ?? ''}
                             onChange={(e) => {
@@ -210,30 +216,30 @@ export function TradeUpgrade({ slot, slots, onSlot }: { slot: string | null; slo
             </table>
             {choices.length > VISIBLE && (
               <button type="button" className="mt-1 text-xs text-stone-400 hover:text-stone-200" onClick={() => setShowAll(!showAll)}>
-                {showAll ? 'Show fewer stats' : `Show all ${choices.length} stats`}
+                {showAll ? t('Show fewer stats') : t('Show all {n} stats', { n: choices.length })}
               </button>
             )}
 
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-stone-400">
-              <label className="flex items-center gap-1.5" title="PoB's minimum score, close to your current item">
+              <label className="flex items-center gap-1.5" title={t("PoB's minimum score, close to your current item")}>
                 <input type="checkbox" className="accent-amber-500" checked={onlyUpgrades} onChange={(e) => setOnlyUpgrades(e.target.checked)} />
-                Only upgrades over my item
+                {t('Only upgrades over my item')}
               </label>
               <label className="flex items-center gap-1.5">
                 <input type="checkbox" className="accent-amber-500" checked={instant} onChange={(e) => setInstant(e.target.checked)} />
-                Instant buyout only
+                {t('Instant buyout only')}
               </label>
               <span className="flex items-center gap-1.5">
-                Max price
+                {t('Max price')}
                 <input
-                  aria-label="Max price"
+                  aria-label={t('Max price')}
                   className="w-14 rounded border border-stone-700 bg-stone-950 px-1 text-right tabular-nums outline-none"
                   placeholder="—"
                   value={maxPrice}
                   onChange={(e) => setMaxPrice(e.target.value)}
                 />
                 <select
-                  aria-label="Price currency"
+                  aria-label={t('Price currency')}
                   className="rounded border border-stone-700 bg-stone-950 px-1 outline-none"
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value as 'divine' | 'exalted')}
@@ -246,20 +252,23 @@ export function TradeUpgrade({ slot, slots, onSlot }: { slot: string | null; slo
 
             {preview && (
               <div className="mt-3 rounded-md border border-stone-800 bg-stone-950/60 p-2 text-sm">
-                <div className="text-xs text-stone-500">An item with {preview.lines.join(', ')} would give you (PoB):</div>
+                <div className="text-xs text-stone-500">{t('An item with {stats} would give you (PoB):', { stats: preview.lines.join(', ') })}</div>
                 {losses.map((l) => (
                   <div key={l.key} className="mt-1 text-amber-400">
-                    ⚠ {STAT_LABELS[l.key]} would drop to {Math.round(l.after)}% — your current item gives it. Set a{' '}
-                    {STAT_LABELS[l.key]?.toLowerCase()} stat to “Must have” to keep it.
+                    ⚠{' '}
+                    {t('{stat} would drop to {value}% — your current item gives it. Set that stat to “Must have” to keep it.', {
+                      stat: statLabel(l.key, t),
+                      value: Math.round(l.after)
+                    })}
                   </div>
                 ))}
                 <div className="mt-1 flex flex-wrap gap-x-3">
                   {changes.length === 0 ? (
-                    <span className="text-stone-500">no change to key stats</span>
+                    <span className="text-stone-500">{t('no change to key stats')}</span>
                   ) : (
                     changes.map((c) => (
                       <span key={c.key} className={isImprovement(c.key, c.delta) ? 'text-emerald-400' : 'text-red-400'}>
-                        {STAT_LABELS[c.key] ?? c.key} {formatDelta(c.key, c.before, c.delta)}
+                        {statLabel(c.key, t)} {formatDelta(c.key, c.before, c.delta)}
                       </span>
                     ))
                   )}
@@ -277,10 +286,11 @@ export function TradeUpgrade({ slot, slots, onSlot }: { slot: string | null; slo
                   setTimeout(() => setCooldown(false), 3000)
                 }}
               >
-                {cooldown ? 'Opened in your browser' : 'Open trade search'}
+                {cooldown ? t('Opened in your browser') : t('Open trade search')}
               </Button>
               <span className="text-xs text-stone-500">
-                {active} stat{active === 1 ? '' : 's'} · opens pathofexile.com in your browser
+                {active === 1 ? t('{n} stat', { n: active }) : t('{n} stats', { n: active })} ·{' '}
+                {t('opens pathofexile.com in your browser')}
               </span>
             </div>
           </>

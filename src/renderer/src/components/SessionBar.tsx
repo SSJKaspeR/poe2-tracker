@@ -1,26 +1,29 @@
 import { useEffect, useState } from 'react'
 import type { SessionLineDTO, SessionMode, SessionSummaryDTO } from '@shared/ipc'
 import { formatDuration } from '../format'
-import { useMoney, useTracker } from '../store'
+import { useMoney, useT, useTracker } from '../store'
+import type { Translator } from '@shared/i18n'
 import { Button, Card } from './Card'
 import { ItemPicker } from './ItemPicker'
 
 /** Same threshold as the main process (SessionRepository.MIN_RATE_DURATION_MS). */
 export const MIN_RATE_MS = 5 * 60 * 1000
 
-export const MODES: { id: SessionMode; label: string; hint: string }[] = [
-  { id: 'maps', label: 'Rush maps', hint: 'A set number of maps' },
-  { id: 'boss', label: 'Pinnacle boss', hint: 'Boss attempts' },
-  { id: 'hideout', label: 'Hideout', hint: 'Stash sorting or crafting' }
-]
+export function sessionModes(t: Translator): { id: SessionMode; label: string; hint: string }[] {
+  return [
+    { id: 'maps', label: t('Rush maps'), hint: t('A set number of maps') },
+    { id: 'boss', label: t('Pinnacle boss'), hint: t('Boss attempts') },
+    { id: 'hideout', label: t('Hideout'), hint: t('Stash sorting or crafting') }
+  ]
+}
 
 /** Pinnacle bosses offered as suggestions; any name can be typed. ⚠️ to update for 1.0. */
 const BOSS_SUGGESTIONS = ['Arbiter of Ash', 'Xesht, We That Are One', 'The King in the Mists', 'Zarokh, the Temporal', 'Arbiter of Divinity']
 
-export function modeLabel(s: Pick<SessionSummaryDTO, 'mode' | 'activity' | 'bossName'>): string {
-  if (s.mode === 'boss') return s.bossName ? `Boss — ${s.bossName}` : 'Pinnacle boss'
-  if (s.mode === 'hideout') return s.activity === 'craft' ? 'Hideout — crafting' : 'Hideout — stash'
-  return 'Rush maps'
+export function modeLabel(s: Pick<SessionSummaryDTO, 'mode' | 'activity' | 'bossName'>, t: Translator): string {
+  if (s.mode === 'boss') return s.bossName ? t('Boss — {name}', { name: s.bossName }) : t('Pinnacle boss')
+  if (s.mode === 'hideout') return s.activity === 'craft' ? t('Hideout — crafting') : t('Hideout — stash')
+  return t('Rush maps')
 }
 
 export function SessionBar() {
@@ -34,6 +37,7 @@ function StartSession() {
   const [count, setCount] = useState('10')
   const [boss, setBoss] = useState('')
   const [activity, setActivity] = useState<'stash' | 'craft'>('stash')
+  const t = useT()
 
   async function start() {
     if (!mode) return
@@ -49,10 +53,10 @@ function StartSession() {
   }
 
   return (
-    <Card title="Session">
+    <Card title={t('Session')}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="mr-2 text-sm text-stone-400">What are you doing now?</span>
-        {MODES.map((m) => (
+        <span className="mr-2 text-sm text-stone-400">{t('What are you doing now?')}</span>
+        {sessionModes(t).map((m) => (
           <button
             key={m.id}
             type="button"
@@ -70,9 +74,9 @@ function StartSession() {
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
           {mode === 'maps' && (
             <label className="flex items-center gap-2 text-stone-400">
-              Number of maps
+              {t('Number of maps')}
               <input
-                aria-label="Number of maps"
+                aria-label={t('Number of maps')}
                 className="w-16 rounded-md border border-stone-800 bg-stone-950 px-2 py-1 text-right tabular-nums outline-none focus:border-ember-500"
                 value={count}
                 onChange={(e) => setCount(e.target.value)}
@@ -82,10 +86,10 @@ function StartSession() {
           {mode === 'boss' && (
             <>
               <input
-                aria-label="Boss"
+                aria-label={t('Boss')}
                 list="boss-suggestions"
                 className="w-56 rounded-md border border-stone-800 bg-stone-950 px-2 py-1 outline-none focus:border-ember-500"
-                placeholder="Boss (optional)"
+                placeholder={t('Boss (optional)')}
                 value={boss}
                 onChange={(e) => setBoss(e.target.value)}
               />
@@ -95,9 +99,9 @@ function StartSession() {
                 ))}
               </datalist>
               <label className="flex items-center gap-2 text-stone-400">
-                Attempts
+                {t('Attempts')}
                 <input
-                  aria-label="Number of attempts"
+                  aria-label={t('Number of attempts')}
                   className="w-16 rounded-md border border-stone-800 bg-stone-950 px-2 py-1 text-right tabular-nums outline-none focus:border-ember-500"
                   placeholder="—"
                   value={count}
@@ -107,7 +111,7 @@ function StartSession() {
             </>
           )}
           {mode === 'hideout' && (
-            <div className="flex gap-1" role="radiogroup" aria-label="Activity">
+            <div className="flex gap-1" role="radiogroup" aria-label={t('Activity')}>
               {(['stash', 'craft'] as const).map((a) => (
                 <button
                   key={a}
@@ -117,12 +121,12 @@ function StartSession() {
                   className={`rounded-md px-3 py-1 ${activity === a ? 'bg-stone-800 text-stone-100' : 'text-stone-400 hover:text-stone-200'}`}
                   onClick={() => setActivity(a)}
                 >
-                  {a === 'stash' ? 'Stash / sorting' : 'Crafting'}
+                  {a === 'stash' ? t('Stash / sorting') : t('Crafting')}
                 </button>
               ))}
             </div>
           )}
-          <Button onClick={() => void start()}>Start session</Button>
+          <Button onClick={() => void start()}>{t('Start session')}</Button>
         </div>
       )}
     </Card>
@@ -132,10 +136,11 @@ function StartSession() {
 function ActiveSession({ session: s }: { session: SessionSummaryDTO }) {
   const setStatus = useTracker((st) => st.setStatus)
   const money = useMoney()
+  const t = useT()
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(t)
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
   }, [])
 
   const elapsed = now - new Date(s.startedAt).getTime()
@@ -146,23 +151,25 @@ function ActiveSession({ session: s }: { session: SessionSummaryDTO }) {
 
   return (
     <Card
-      title={`Session · ${modeLabel(s)}`}
+      title={`${t('Session')} · ${modeLabel(s, t)}`}
       actions={
         <Button variant="ghost" onClick={() => void window.tracker.endSession().then(setStatus)}>
-          End session
+          {t('End session')}
         </Button>
       }
     >
       {s.objectiveReached && (
         <div className="mb-3 rounded-md border border-emerald-700 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300">
-          Objective reached — {s.targetCount} {s.mode === 'boss' ? 'attempts' : 'maps'} done.
+          {s.mode === 'boss'
+            ? t('Objective reached — {n} attempts done.', { n: s.targetCount ?? 0 })
+            : t('Objective reached — {n} maps done.', { n: s.targetCount ?? 0 })}
         </div>
       )}
       <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
-        <Metric label="Session time" value={formatDuration(elapsed)} />
+        <Metric label={t('Session time')} value={formatDuration(elapsed)} />
         {s.mode !== 'hideout' && (
           <div className="min-w-48">
-            <div className="text-xs text-stone-500">{s.mode === 'boss' ? 'Attempts' : 'Maps'}</div>
+            <div className="text-xs text-stone-500">{s.mode === 'boss' ? t('Attempts') : t('Maps')}</div>
             <div className="text-xl font-semibold tabular-nums text-stone-100">
               {progress}
               {s.targetCount ? <span className="text-stone-500"> / {s.targetCount}</span> : null}
@@ -176,24 +183,24 @@ function ActiveSession({ session: s }: { session: SessionSummaryDTO }) {
         )}
         {s.mode === 'maps' && (
           <>
-            <Metric label="Maps / hour" value={s.completedRuns && rateReady ? ((s.completedRuns / elapsed) * 3_600_000).toFixed(1) : '—'} />
-            <Metric label="Deaths" value={String(s.deaths)} />
+            <Metric label={t('Maps / hour')} value={s.completedRuns && rateReady ? ((s.completedRuns / elapsed) * 3_600_000).toFixed(1) : '—'} />
+            <Metric label={t('Deaths')} value={String(s.deaths)} />
           </>
         )}
         {s.mode === 'boss' && (
           <>
-            <Metric label="Kills" value={String(s.kills)} tone="good" />
-            <Metric label="Fails" value={String(s.fails)} tone={s.fails ? 'bad' : undefined} />
-            <Metric label="Kill rate" value={s.kills + s.fails ? `${Math.round((s.kills / (s.kills + s.fails)) * 100)}%` : '—'} />
+            <Metric label={t('Kills')} value={String(s.kills)} tone="good" />
+            <Metric label={t('Fails')} value={String(s.fails)} tone={s.fails ? 'bad' : undefined} />
+            <Metric label={t('Kill rate')} value={s.kills + s.fails ? `${Math.round((s.kills / (s.kills + s.fails)) * 100)}%` : '—'} />
           </>
         )}
         <Metric
-          label="Profit"
+          label={t('Profit')}
           value={s.hasEconomy ? money(s.profit, { sign: true }) : '—'}
           tone={s.hasEconomy ? (s.profit >= 0 ? 'good' : 'bad') : undefined}
         />
         <Metric
-          label="Profit / hour (session)"
+          label={t('Profit / hour (session)')}
           value={profitPerHour !== null ? money(profitPerHour, { sign: true }) : '—'}
           tone={profitPerHour !== null ? (profitPerHour >= 0 ? 'good' : 'bad') : undefined}
         />
@@ -206,6 +213,7 @@ function ActiveSession({ session: s }: { session: SessionSummaryDTO }) {
 /** Currency spent / gained outside maps: crafting, selling… */
 function SessionLines({ sessionId }: { sessionId: number }) {
   const money = useMoney()
+  const t = useT()
   const [lines, setLines] = useState<SessionLineDTO[]>([])
   useEffect(() => {
     void window.tracker.getSessionLines(sessionId).then(setLines)
@@ -224,10 +232,10 @@ function SessionLines({ sessionId }: { sessionId: number }) {
                 {l.quantity} × {l.label}
               </span>
               <span className="flex gap-2 tabular-nums text-stone-400">
-                {l.unitValue === null ? <span className="text-amber-500">no price</span> : money(l.unitValue * l.quantity)}
+                {l.unitValue === null ? <span className="text-amber-500">{t('no price')}</span> : money(l.unitValue * l.quantity)}
                 <button
                   type="button"
-                  aria-label={`Remove ${l.label}`}
+                  aria-label={t('Remove {item}', { item: l.label })}
                   className="text-stone-600 hover:text-red-400"
                   onClick={() => void window.tracker.removeSessionLine(sessionId, l.id).then(setLines)}
                 >
@@ -242,8 +250,8 @@ function SessionLines({ sessionId }: { sessionId: number }) {
 
   return (
     <div className="mt-4 grid grid-cols-2 gap-6">
-      {block('spent', 'Spent (craft materials, purchases…)')}
-      {block('gained', 'Gained (sales, crafted items…)')}
+      {block('spent', t('Spent (craft materials, purchases…)'))}
+      {block('gained', t('Gained (sales, crafted items…)'))}
     </div>
   )
 }

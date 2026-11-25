@@ -63,6 +63,7 @@ The engine ships inside the app, so engine updates reach players through app rel
 | Settings, build, strategies, session kept after restart | — | service restart | — |
 | Display formats | misc | — | ✓ |
 | Tabs, navigation, shortcut from another tab shows a notice | — | — | ✓ |
+| Interface language (English / French), settings panel | i18n | — | ✓ (switch to French and back) |
 | Windows installer, packaged engine | — | Windows CI | Windows CI |
 
 ## Not covered automatically (needs the real game)
@@ -164,3 +165,17 @@ bow the skill deals no damage and no support changes anything); e2e (card, clear
   non-stop (`ManaPerSecondCost` vs `ManaRegenRecovery`, warning under 20 s), Spirit going negative.
 - **Verdict**: the main skill runs out of mana in under 20 s of non-stop use (warning under 10 s).
 
+## Translations (English / French)
+
+- Texts are written in English and wrapped in `t('…')` (renderer: `useT()`; main process: `svc.t`; core
+  functions take a translator, English by default). `src/shared/i18n/fr.ts` maps each English text to French;
+  a missing entry falls back to English.
+- `tests/unit/i18n.test.ts` scans the source code: every `t('…')` text needs a French entry with the same
+  `{parameters}`, and no French entry may be left unused. Rules for it to see the texts: a literal string
+  inside `t(…)`, no template literal, plurals as two `t()` calls (`n === 1 ? t('{n} map', …) : t('{n} maps', …)`).
+- Results calculated on the server (verdicts, gear advice, optimisations, gear check) are cached per build
+  version **and** language; screens reload them when the language changes.
+- Game data (item mods, item and gem names, PoB stat lines) stays in English, as in Path of Building and on
+  the trade site; so do currency names (Exalted Orb, Artificer's Orb…).
+- The e2e test runs in English (`POE2_LANG=en`) and checks the switch to French and back. Dates and numbers
+  follow the system locale.

@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import type { BuildSnapshotDTO, ItemComparisonDTO } from '@shared/ipc'
 import { HOTKEY_CHOICES } from '@shared/hotkeys'
 import type { ItemVerdict } from '@shared/impact'
-import { STAT_HELP, STAT_LABELS, formatStat, isImprovement } from '../format'
-import { useTracker } from '../store'
+import { STAT_LABELS, formatStat, isImprovement, statHelp, statLabel } from '../format'
+import { useT, useTracker } from '../store'
 import { Button, Card } from './Card'
 
 const KEY_STATS = ['CombinedDPS', 'Life', 'EnergyShield', 'Spirit', 'TotalEHP', 'FireResist', 'ColdResist', 'LightningResist', 'ChaosResist']
 
 export function BuildPanel() {
+  const t = useT()
   const status = useTracker((s) => s.status)
   const pob = status?.pob
   const build = status?.build ?? null
@@ -48,14 +49,14 @@ export function BuildPanel() {
     <>
       <textarea
         className="h-16 w-full resize-none rounded-md border border-stone-800 bg-stone-950 p-2 font-mono text-xs text-stone-300 outline-none focus:border-ember-500"
-        placeholder="PoB code or link (pobb.in, poe.ninja, Maxroll…)"
+        placeholder={t('PoB code or link (pobb.in, poe.ninja, Maxroll…)')}
         value={code}
         onChange={(e) => setCode(e.target.value)}
       />
       {build && (
         <label className="mt-1 flex items-center gap-2 text-xs text-stone-400">
           <input type="checkbox" className="accent-amber-500" checked={newBuild} onChange={(e) => setNewBuild(e.target.checked)} />
-          Another character (otherwise: new version of {build.name})
+          {t('Another character (otherwise: new version of {build})', { build: build.name })}
         </label>
       )}
       <div className="mt-2 flex items-center gap-3">
@@ -67,46 +68,46 @@ export function BuildPanel() {
           }}
           disabled={!ready || busy}
         >
-          {busy ? 'Importing…' : 'Paste & import'}
+          {busy ? t('Importing…') : t('Paste & import')}
         </Button>
         <Button variant="ghost" onClick={() => void importBuild()} disabled={!ready || busy || code.trim().length < 20}>
-          Import
+          {t('Import')}
         </Button>
         {build && (
           <Button variant="ghost" onClick={() => setShowImport(false)}>
-            Cancel
+            {t('Cancel')}
           </Button>
         )}
         {error && <span className="text-sm text-red-400">{error}</span>}
       </div>
       <p className="mt-2 text-xs text-stone-500">
-        Get your code: your character on poe.ninja → "Path of Building" export, or Import/Export in Path of Building.
+        {t('Get your code: your character on poe.ninja → "Path of Building" export, or Import/Export in Path of Building.')}
       </p>
     </>
   )
 
   return (
-    <Card title="Build" actions={<EngineBadge />}>
+    <Card title={t('Build')} actions={<EngineBadge />}>
       {build ? (
         <div className="mb-1">
           <div className="flex items-baseline justify-between">
             <div className="text-stone-100">{build.name}</div>
             {!showImport && (
               <button type="button" className="text-xs text-stone-500 hover:text-stone-200" onClick={() => setShowImport(true)}>
-                Re-import
+                {t('Re-import')}
               </button>
             )}
           </div>
           <div className="text-xs text-stone-500">
-            v{build.versionCount} · {build.versionLabel ?? 'Imported'}
-            {snapshot?.info.level ? ` · level ${snapshot.info.level}` : ''}
+            v{build.versionCount} · {build.versionLabel ?? t('Imported')}
+            {snapshot?.info.level ? ` · ${t('level {level}', { level: snapshot.info.level })}` : ''}
             {snapshot?.info.mainSkill ? ` · ${snapshot.info.mainSkill}` : ''}
           </div>
           {snapshot && (
             <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
               {KEY_STATS.filter((k) => snapshot.stats[k] !== undefined).map((k) => (
                 <div key={k} className="flex justify-between">
-                  <dt className={`text-stone-500 ${STAT_HELP[k] ? "cursor-help underline decoration-dotted decoration-stone-700 underline-offset-2" : ""}`} title={STAT_HELP[k]}>{STAT_LABELS[k] ?? k}</dt>
+                  <dt className={`text-stone-500 ${statHelp(k) ? "cursor-help underline decoration-dotted decoration-stone-700 underline-offset-2" : ""}`} title={statHelp(k, t)}>{statLabel(k, t)}</dt>
                   <dd className="tabular-nums">{formatStat(k, snapshot.stats[k]!)}</dd>
                 </div>
               ))}
@@ -116,7 +117,7 @@ export function BuildPanel() {
         </div>
       ) : (
         <>
-          <p className="mb-3 text-sm text-stone-500">Paste your Path of Building code once. Every map is then linked to it.</p>
+          <p className="mb-3 text-sm text-stone-500">{t('Paste your Path of Building code once. Every map is then linked to it.')}</p>
           {importForm}
         </>
       )}
@@ -126,14 +127,15 @@ export function BuildPanel() {
 
 function EngineBadge() {
   const pob = useTracker((s) => s.status?.pob)
+  const t = useT()
   if (!pob) return null
   const [label, color] = !pob.available
-    ? ['engine missing', 'text-red-400']
+    ? [t('engine missing'), 'text-red-400']
     : pob.running
       ? [`engine ${pob.version ?? ''}`.trim(), 'text-emerald-400']
       : pob.error
-        ? ['engine error', 'text-red-400']
-        : ['engine loading…', 'text-stone-400']
+        ? [t('engine error'), 'text-red-400']
+        : [t('engine loading…'), 'text-stone-400']
   return (
     <span className={`text-xs ${color}`} title={pob.error ?? undefined}>
       ● {label}
@@ -148,18 +150,15 @@ export function ItemComparePanel() {
   const [result, setResult] = useState<ItemComparisonDTO | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [equipped, setEquipped] = useState(false)
-  const [miss, setMiss] = useState<string | null>(null)
-  useEffect(
-    () =>
-      window.tracker.onHotkeyMiss((reason) =>
-        setMiss(
-          reason === 'not-gear'
-            ? 'The item in your clipboard is not equipment (currency, waystone, gem…): nothing to compare.'
-            : 'No item in your clipboard: hover the item in game, press Ctrl+C, then the shortcut.'
-        )
-      ),
-    []
-  )
+  const t = useT()
+  const [miss, setMiss] = useState<'not-item' | 'not-gear' | null>(null)
+  useEffect(() => window.tracker.onHotkeyMiss(setMiss), [])
+  const missText =
+    miss === 'not-gear'
+      ? t('The item in your clipboard is not equipment (currency, waystone, gem…): nothing to compare.')
+      : miss === 'not-item'
+        ? t('No item in your clipboard: hover the item in game, press Ctrl+C, then the shortcut.')
+        : null
 
   // Ctrl+C on an item in game → the main process compares it and pushes the result.
   useEffect(
@@ -205,16 +204,18 @@ export function ItemComparePanel() {
 
   return (
     <Card
-      title="Compare an item"
+      title={t('Compare an item')}
       actions={
         status && (
           <label
             className="flex items-center gap-1.5 text-xs text-stone-400"
-            title="In game: Ctrl+C on an item, then this shortcut. The app reads the clipboard once per press (GGG rules) and never sends keys to the game."
+            title={t(
+              'In game: Ctrl+C on an item, then this shortcut. The app reads the clipboard once per press (GGG rules) and never sends keys to the game.'
+            )}
           >
-            Shortcut
+            {t('Shortcut')}
             <select
-              aria-label="Compare shortcut"
+              aria-label={t('Compare shortcut')}
               className="rounded border border-stone-700 bg-stone-900 px-1.5 py-0.5 text-xs text-stone-200"
               value={status.compareHotkey.accelerator ?? ''}
               onChange={(e) => void window.tracker.setCompareHotkey(e.target.value || null).then(setStatus)}
@@ -224,7 +225,7 @@ export function ItemComparePanel() {
                   {c.label}
                 </option>
               ))}
-              <option value="">Off</option>
+              <option value="">{t('Off')}</option>
             </select>
           </label>
         )
@@ -234,8 +235,8 @@ export function ItemComparePanel() {
         className="h-24 w-full resize-none rounded-md border border-stone-800 bg-stone-950 p-2 font-mono text-xs text-stone-300 outline-none focus:border-ember-500"
         placeholder={
           status?.compareHotkey.label
-            ? `In game: Ctrl+C on an item, then ${status.compareHotkey.label} — or paste it here`
-            : 'Paste an item here (Ctrl+C on it in game)'
+            ? t('In game: Ctrl+C on an item, then {shortcut} — or paste it here', { shortcut: status.compareHotkey.label })
+            : t('Paste an item here (Ctrl+C on it in game)')
         }
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -246,26 +247,26 @@ export function ItemComparePanel() {
       />
       <div className="mt-2 flex items-center gap-3">
         <Button onClick={() => void compare(text)} disabled={!status?.pob.running || text.trim().length === 0}>
-          Compare
+          {t('Compare')}
         </Button>
         {error && <span className="text-sm text-red-400">{error}</span>}
       </div>
-      {miss && <p className="mt-2 text-sm text-amber-400">{miss}</p>}
+      {missText && <p className="mt-2 text-sm text-amber-400">{missText}</p>}
       {status?.compareHotkey.error && <p className="mt-2 text-sm text-amber-400">{status.compareHotkey.error}</p>}
       {result && (
         <div className="mt-3">
           <div className="text-sm text-stone-400">
-            {result.item.name} → replaces your <span className="text-stone-200">{result.slot}</span>
+            {result.item.name} → {t('replaces your')} <span className="text-stone-200">{result.slot}</span>
           </div>
           {result.verdict && <VerdictBox verdict={result.verdict} />}
           {changes.length === 0 ? (
-            <p className="mt-2 text-sm text-stone-500">No change to your key stats.</p>
+            <p className="mt-2 text-sm text-stone-500">{t('No change to your key stats.')}</p>
           ) : (
             <ul className="mt-2 space-y-1 text-sm">
               {changes.map(([k, c]) => (
                 <li key={k} className="flex justify-between">
-                  <span className="text-stone-400" title={STAT_HELP[k]}>
-                    {STAT_LABELS[k]}
+                  <span className="text-stone-400" title={statHelp(k, t)}>
+                    {statLabel(k, t)}
                   </span>
                   <span className="tabular-nums">
                     <span className="text-stone-500">{formatStat(k, c.before)} → </span>
@@ -278,9 +279,9 @@ export function ItemComparePanel() {
           {status?.build && (
             <div className="mt-3 flex items-center gap-3">
               <Button variant="ghost" disabled={equipped} onClick={() => void equip()}>
-                {equipped ? 'Equipped ✓' : 'I equipped it'}
+                {equipped ? t('Equipped ✓') : t('I equipped it')}
               </Button>
-              <span className="text-xs text-stone-500">Creates a new build version to compare results.</span>
+              <span className="text-xs text-stone-500">{t('Creates a new build version to compare results.')}</span>
             </div>
           )}
         </div>
@@ -298,8 +299,9 @@ const VERDICT_STYLE: Record<ItemVerdict['tone'], string> = {
 
 /** One plain sentence on the comparison: upgrade, downgrade, or a trade-off explained. */
 export function VerdictBox({ verdict }: { verdict: ItemVerdict }) {
+  const t = useT()
   return (
-    <p role="status" aria-label="Comparison verdict" className={`mt-2 rounded-md border px-3 py-2 text-sm ${VERDICT_STYLE[verdict.tone]}`}>
+    <p role="status" aria-label={t('Comparison verdict')} className={`mt-2 rounded-md border px-3 py-2 text-sm ${VERDICT_STYLE[verdict.tone]}`}>
       {verdict.text}
     </p>
   )

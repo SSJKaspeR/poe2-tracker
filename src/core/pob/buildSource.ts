@@ -43,22 +43,24 @@ export function parseBuildSource(input: string): BuildSource {
   return { kind: 'unknown' }
 }
 
+import { en, type Translator } from '../../shared/i18n'
+
 export type FetchText = (url: string) => Promise<string>
 
 /** PoB code from what the player pasted (downloads it for a link). Throws a readable error. */
-export async function resolveBuildCode(input: string, fetchText: FetchText): Promise<string> {
+export async function resolveBuildCode(input: string, fetchText: FetchText, t: Translator = en): Promise<string> {
   const src = parseBuildSource(input)
   if (src.kind === 'code') return src.code
   if (src.kind === 'unknown') {
-    throw new Error('Not a PoB code or a supported link (pobb.in, poe.ninja, Maxroll, poe2db, Pastebin)')
+    throw new Error(t('Not a PoB code or a supported link (pobb.in, poe.ninja, Maxroll, poe2db, Pastebin)'))
   }
   let body: string
   try {
     body = await fetchText(src.url)
   } catch (err) {
-    throw new Error(`Could not download the build from ${src.site}: ${err instanceof Error ? err.message : String(err)}`)
+    throw new Error(t('Could not download the build from {site}: {error}', { site: src.site, error: err instanceof Error ? err.message : String(err) }))
   }
   const code = body.trim().replace(/\s+/g, '')
-  if (!looksLikePobCode(code)) throw new Error(`${src.site} did not return a PoB code (link expired or private?)`)
+  if (!looksLikePobCode(code)) throw new Error(t('{site} did not return a PoB code (link expired or private?)', { site: src.site }))
   return code
 }

@@ -32,6 +32,7 @@ function createWindow(): void {
     show: false,
     backgroundColor: '#0c0a09',
     title: 'PoE2 Tracker',
+    icon: app.isPackaged ? join(process.resourcesPath, 'icon.png') : resolve(__dirname, '../../resources/icon.png'),
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.mjs'),
@@ -62,7 +63,7 @@ function registerIpc(svc: TrackerService): void {
   })
   ipcMain.handle('log:choose', async () => {
     const result = await dialog.showOpenDialog({
-      title: 'Select Path of Exile 2 Client.txt',
+      title: svc.t('Select Path of Exile 2 Client.txt'),
       properties: ['openFile'],
       filters: [{ name: 'Client.txt', extensions: ['txt'] }]
     })
@@ -98,7 +99,13 @@ function registerIpc(svc: TrackerService): void {
   })
   ipcMain.handle('update:set-auto', (_e, on: boolean) => {
     svc.setUpdateChecks(on)
+    updater?.setEnabled(on)
+    svc.emitStatus()
     return on
+  })
+  ipcMain.handle('settings:language', (_e, lang: 'en' | 'fr') => {
+    svc.setLanguage(lang === 'fr' ? 'fr' : 'en')
+    return svc.status()
   })
   ipcMain.handle('filter:get', (_e, minExalted?: number) => svc.lootFilter(minExalted ?? 1))
   ipcMain.handle('filter:set', (_e, path: string | null) => {
@@ -111,9 +118,9 @@ function registerIpc(svc: TrackerService): void {
   })
   ipcMain.handle('filter:browse', async () => {
     const r = await dialog.showOpenDialog({
-      title: 'Choose your PoE 2 loot filter',
+      title: svc.t('Choose your PoE 2 loot filter'),
       defaultPath: poe2DocumentsDirs(app.getPath('documents'), app.getPath('home'))[0],
-      filters: [{ name: 'Loot filter', extensions: ['filter'] }, { name: 'All files', extensions: ['*'] }],
+      filters: [{ name: svc.t('Loot filter'), extensions: ['filter'] }, { name: svc.t('All files'), extensions: ['*'] }],
       properties: ['openFile']
     })
     if (!r.canceled && r.filePaths[0]) svc.setLootFilter(r.filePaths[0])
@@ -183,7 +190,7 @@ function syncCompareHotkey(svc: TrackerService): void {
       ok = false
     }
     if (ok) registeredHotkey = accelerator
-    else svc.hotkeyError = 'This shortcut is already used by another app: choose another one.'
+    else svc.hotkeyError = svc.t('This shortcut is already used by another app: choose another one.')
   }
   mainWindow?.webContents.send('status:changed', svc.status())
 }
@@ -206,6 +213,7 @@ app.whenReady().then(async () => {
     dbPath: join(app.getPath('userData'), 'poe2-tracker.db'),
     pob: pobOptions(),
     // POE2_FILTER_DIR: tests and unusual installs.
+    locale: process.env.POE2_LANG ?? app.getLocale(),
     filterDirs: process.env.POE2_FILTER_DIR
       ? [process.env.POE2_FILTER_DIR]
       : poe2DocumentsDirs(app.getPath('documents'), app.getPath('home')),
@@ -235,11 +243,12 @@ app.whenReady().then(async () => {
 
 /** Updates from GitHub Releases: only for the installed Windows app (not dev, not tests). */
 async function startUpdater(svc: TrackerService): Promise<void> {
-  const enabled =
-    app.isPackaged && process.platform === 'win32' && !process.env.POE2_NO_UPDATES && svc.getUpdateChecks()
+  const allowed = app.isPackaged && process.platform === 'win32' && !process.env.POE2_NO_UPDATES
+  const enabled = allowed && svc.getUpdateChecks()
   const { autoUpdater } = await import('electron-updater')
   updater = new Updater(autoUpdater, app.getVersion(), {
     enabled,
+    allowed,
     log: (msg) => {
       if (process.env.POE2_TRACKER_DEBUG) console.log(msg)
     }

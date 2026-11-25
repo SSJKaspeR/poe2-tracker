@@ -66,6 +66,7 @@ jobs:
           ls dist
           test -f dist/latest.yml
           test -f "dist/win-unpacked/resources/app-update.yml"
+          test -f "dist/win-unpacked/resources/icon.png"
           cat dist/latest.yml
 
       - name: End-to-end test on the packaged app

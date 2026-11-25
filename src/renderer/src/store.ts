@@ -43,3 +43,11 @@ export function useMoney(): (divine: number, opts?: { sign?: boolean }) => strin
 }
 
 import { formatCurrency as formatCurrencyImpl } from './format'
+
+import { translator, type Translator } from '@shared/i18n'
+
+/** Translator for the interface language (English until the status arrives). */
+export function useT(): Translator {
+  const lang = useTracker((s) => s.status?.language ?? 'en')
+  return translator(lang)
+}
