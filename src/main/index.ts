@@ -113,6 +113,8 @@ function registerIpc(svc: TrackerService): void {
     if (!r.canceled && r.filePaths[0]) svc.setLootFilter(r.filePaths[0])
     return svc.lootFilter()
   })
+  // Read once, because the player clicked "Paste & import" (GGG: one read per manual action).
+  ipcMain.handle('clipboard:read-once', () => clipboard.readText())
   ipcMain.handle('hotkey:set', (_e, accelerator: string | null) => {
     svc.setCompareHotkey(accelerator)
     syncCompareHotkey(svc)

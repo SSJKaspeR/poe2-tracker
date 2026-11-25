@@ -91,7 +91,12 @@ function folder() {
 
 async function startService(
   f: { db: string; log: string },
-  opts: { useLogEnv?: boolean; ninja?: ReturnType<typeof fakeNinja>; filterDirs?: string[] } = {}
+  opts: {
+    useLogEnv?: boolean
+    ninja?: ReturnType<typeof fakeNinja>
+    filterDirs?: string[]
+    fetchText?: (url: string) => Promise<string>
+  } = {}
 ) {
   if (opts.useLogEnv !== false) process.env.POE2_CLIENT_LOG = f.log
   else delete process.env.POE2_CLIENT_LOG
@@ -100,7 +105,8 @@ async function startService(
     dbPath: f.db,
     pob: { ...paths!, bridgeScript: resolve(ROOT, 'resources', 'pob', 'bridge.lua') },
     pricing: ninja.client,
-    filterDirs: opts.filterDirs
+    filterDirs: opts.filterDirs,
+    fetchText: opts.fetchText
   })
   services.push(svc)
   await svc.start()
@@ -256,6 +262,21 @@ describe.skipIf(!paths)('TrackerService (whole app logic, real engine)', () => {
     unwrap(await svc.importBuild(fx('build-player-treegems.pobcode'), { newBuild: true, name: 'Alt' }))
     expect(svc.status().build).toMatchObject({ name: 'Alt', versionCount: 1 })
     expect(svc.status().build!.buildId).not.toBe(first.buildId)
+  })
+
+  it('imports a build from a sharing link (one download) and reports bad input', async () => {
+    const urls: string[] = []
+    const svc = await startService(folder(), {
+      fetchText: async (url) => {
+        urls.push(url)
+        return fx('build-level1.pobcode')
+      }
+    })
+    const snap = unwrap(await svc.importBuild('https://pobb.in/Ab12', { newBuild: false }))
+    expect(snap.info.className).toBeTruthy()
+    expect(urls).toEqual(['https://pobb.in/pob/Ab12'])
+    expect(await svc.importBuild('just some text', { newBuild: false })).toMatchObject({ ok: false, error: expect.stringMatching(/Not a PoB code/) })
+    expect(urls).toHaveLength(1)
   })
 
   it('compare hotkey: one clipboard read per press, equipment only, misses reported', async () => {

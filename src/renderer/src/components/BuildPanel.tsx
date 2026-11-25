@@ -30,10 +30,10 @@ export function BuildPanel() {
     void window.tracker.getBuildSnapshot().then((r) => r.ok && setSnapshot(r.value))
   }, [ready, versionId])
 
-  async function importBuild() {
+  async function importBuild(input = code) {
     setBusy(true)
     setError(null)
-    const res = await window.tracker.importBuild(code, { newBuild: newBuild || !build })
+    const res = await window.tracker.importBuild(input, { newBuild: newBuild || !build })
     setBusy(false)
     if (res.ok) {
       setSnapshot(res.value)
@@ -47,7 +47,7 @@ export function BuildPanel() {
     <>
       <textarea
         className="h-16 w-full resize-none rounded-md border border-stone-800 bg-stone-950 p-2 font-mono text-xs text-stone-300 outline-none focus:border-ember-500"
-        placeholder="PoB code (eNrt…)"
+        placeholder="PoB code or link (pobb.in, poe.ninja, Maxroll…)"
         value={code}
         onChange={(e) => setCode(e.target.value)}
       />
@@ -58,8 +58,18 @@ export function BuildPanel() {
         </label>
       )}
       <div className="mt-2 flex items-center gap-3">
-        <Button onClick={() => void importBuild()} disabled={!ready || busy || code.trim().length < 20}>
-          {busy ? 'Importing…' : 'Import build'}
+        <Button
+          onClick={async () => {
+            const clip = (await window.tracker.readClipboardOnce()).trim()
+            setCode(clip)
+            void importBuild(clip)
+          }}
+          disabled={!ready || busy}
+        >
+          {busy ? 'Importing…' : 'Paste & import'}
+        </Button>
+        <Button variant="ghost" onClick={() => void importBuild()} disabled={!ready || busy || code.trim().length < 20}>
+          Import
         </Button>
         {build && (
           <Button variant="ghost" onClick={() => setShowImport(false)}>
@@ -68,6 +78,9 @@ export function BuildPanel() {
         )}
         {error && <span className="text-sm text-red-400">{error}</span>}
       </div>
+      <p className="mt-2 text-xs text-stone-500">
+        Get your code: your character on poe.ninja → "Path of Building" export, or Import/Export in Path of Building.
+      </p>
     </>
   )
 

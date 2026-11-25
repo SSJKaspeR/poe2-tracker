@@ -63,7 +63,7 @@ export function GuideCompare() {
       </p>
       <textarea
         className="h-16 w-full resize-none rounded-md border border-stone-800 bg-stone-950 p-2 font-mono text-xs text-stone-300 outline-none focus:border-ember-500"
-        placeholder="Guide PoB code (eNrt…)"
+        placeholder="Guide PoB code or link (pobb.in, poe.ninja, Maxroll…)"
         value={code}
         onChange={(e) => setCode(e.target.value)}
       />

@@ -292,7 +292,8 @@ export interface TrackerApi {
 
   // Build
   getBuildSnapshot(): Promise<Result<BuildSnapshotDTO | null>>
-  importBuild(code: string, opts: { newBuild: boolean; name?: string }): Promise<Result<BuildSnapshotDTO>>
+  /** PoB code or build link (pobb.in, poe.ninja, Maxroll, poe2db, Pastebin). */
+  importBuild(codeOrLink: string, opts: { newBuild: boolean; name?: string }): Promise<Result<BuildSnapshotDTO>>
   compareItem(itemText: string): Promise<Result<ItemComparisonDTO>>
   equipItem(itemText: string): Promise<Result<BuildSnapshotDTO>>
   getVersionPerformance(): Promise<VersionPerformanceDTO[]>
@@ -309,6 +310,8 @@ export interface TrackerApi {
   previewTradeItem(slot: string, mods: { tradeId: string; text: string; value: number }[]): Promise<Result<TradePreviewDTO>>
   /** Completed runs with economy; `sinceDays` null = all time. */
   getRunsDetailed(sinceDays: number | null): Promise<RunDetailDTO[]>
+  /** Clipboard text, read once on a player click ("Paste & import"). */
+  readClipboardOnce(): Promise<string>
   /** Change the compare hotkey (Electron accelerator), null to turn it off. */
   setCompareHotkey(accelerator: string | null): Promise<AppStatus>
   /** Hotkey pressed but the clipboard held no equipment. */

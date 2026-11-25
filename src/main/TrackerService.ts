@@ -1,5 +1,7 @@
 import { checkClipboard, DEFAULT_HOTKEY, hotkeyLabel, type ClipboardCheck } from '../core/clipboard/compareHotkey'
 import { existsSync, readFileSync, statSync } from 'node:fs'
+import axios from 'axios'
+import { resolveBuildCode, type FetchText } from '../core/pob/buildSource'
 import { computeVerdicts, type VerdictBuild } from '../core/verdicts/verdicts'
 import { formatCurrency } from '../renderer/src/format'
 import { guessActiveFilter, listFilters, poe2DocumentsDirs } from '../core/filter/findLootFilter'
@@ -80,6 +82,7 @@ export class TrackerService extends EventEmitter {
   private stopped = false
   private readonly filterDirs: string[]
   private readonly logFn?: (msg: string) => void
+  private readonly fetchText: FetchText
   /** Set by the main process when the hotkey can't be registered (taken by another app). */
   hotkeyError: string | null = null
   private parsedFilter: { path: string; mtime: number; filter: ParsedFilter } | null = null
@@ -93,8 +96,22 @@ export class TrackerService extends EventEmitter {
     userAgent?: string
     /** Where PoE 2 keeps loot filters (Documents/My Games/Path of Exile 2…). */
     filterDirs?: string[]
+    /** Downloads a build code from a sharing site (faked in tests). */
+    fetchText?: FetchText
   }) {
     super()
+    const ua = opts.userAgent ?? 'PoE2Tracker (+https://github.com/SSJKaspeR/poe2-tracker)'
+    this.fetchText =
+      opts.fetchText ??
+      (async (url) =>
+        (
+          await axios.get<string>(url, {
+            responseType: 'text',
+            timeout: 15_000,
+            maxContentLength: 2_000_000,
+            headers: { 'User-Agent': ua }
+          })
+        ).data)
     this.logFn = opts.log
     this.filterDirs = opts.filterDirs ?? []
     this.database = new AppDatabase(opts.dbPath)
@@ -256,8 +273,12 @@ export class TrackerService extends EventEmitter {
     return wrap(() => this.withPob(() => this.pob!.stats()))
   }
 
-  async importBuild(code: string, opts: { newBuild: boolean; name?: string }): Promise<Result<BuildSnapshotDTO>> {
+  /** Import the player's build from a PoB code or a build link (pobb.in, poe.ninja, Maxroll…). */
+  async importBuild(input: string, opts: { newBuild: boolean; name?: string }): Promise<Result<BuildSnapshotDTO>> {
     if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    const resolved = await wrap(() => resolveBuildCode(input, this.fetchText))
+    if (!resolved.ok) return resolved
+    const code = resolved.value
     await this.pobReady
     const res = await wrap(() => this.withPob(() => this.pob!.loadCode(code.trim())))
     if (!res.ok) return res
@@ -491,10 +512,13 @@ export class TrackerService extends EventEmitter {
    * Read a guide build once (stats + gear), then put the player's build back in
    * the engine. The snapshot is stored per build, so the guide is only parsed once.
    */
-  async setGuideBuild(code: string, name?: string): Promise<Result<GuideComparisonDTO>> {
+  async setGuideBuild(input: string, name?: string): Promise<Result<GuideComparisonDTO>> {
     if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
     const active = this.activeBuild()
     if (!active) return { ok: false, error: 'Import your own build first' }
+    const resolved = await wrap(() => resolveBuildCode(input, this.fetchText))
+    if (!resolved.ok) return resolved
+    const code = resolved.value
     await this.pobReady
     const res = await wrap(() =>
       this.withPob(async () => {

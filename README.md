@@ -84,7 +84,11 @@ The app follows GGG's [third-party policy](https://www.pathofexile.com/developer
 - It reads the clipboard **once per press of its shortcut**, never in the background, and never sends
   keys to the game.
 - It reads your loot filter only after you click "Analyse my loot filter", and never changes it.
+- Build import: paste a PoB code or a link (pobb.in, poe.ninja, Maxroll, poe2db, Pastebin). A link is
+  downloaded once, when you click Import. "Paste & import" reads the clipboard once, on that click.
 - It never calls GGG's trade API or undocumented endpoints, and never reads or modifies game files or memory.
+  Importing a character straight from your GGG account needs GGG's official API, which isn't accepting new
+  applications yet: it will come when it is.
 
 Not affiliated with or endorsed by Grinding Gear Games.
 

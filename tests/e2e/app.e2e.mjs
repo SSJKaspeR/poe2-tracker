@@ -64,14 +64,18 @@ try {
   await win.getByText('Reading Client.txt').waitFor({ timeout: 15_000 })
   await win.getByText(/● engine \d/).waitFor({ timeout: 60_000 })
 
-  step('a broken build code shows an error')
-  await win.getByPlaceholder('PoB code (eNrt…)').fill('eNrt' + 'A'.repeat(40))
-  await win.getByRole('button', { name: 'Import build' }).click()
+  step('a broken build code or random text shows an error')
+  const codeBox = win.getByPlaceholder('PoB code or link (pobb.in, poe.ninja, Maxroll…)')
+  await codeBox.fill('this is not a build code, just some text')
+  await win.getByRole('button', { name: 'Import', exact: true }).click()
+  await win.getByText(/Not a PoB code or a supported link/).first().waitFor({ timeout: 15_000 })
+  await codeBox.fill('eNrt' + 'A'.repeat(60))
+  await win.getByRole('button', { name: 'Import', exact: true }).click()
   await win.getByText(/invalid build code/).first().waitFor({ timeout: 15_000 })
 
-  step('import build')
-  await win.getByPlaceholder('PoB code (eNrt…)').fill(BUILD_CODE)
-  await win.getByRole('button', { name: 'Import build' }).click()
+  step('import build with "Paste & import" (clipboard read once, on click)')
+  await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), BUILD_CODE)
+  await win.getByRole('button', { name: 'Paste & import' }).click()
   await win.getByText(/v1 · Imported/).first().waitFor({ timeout: 15_000 })
 
   step('create a strategy with an unpriced waystone, auto-applied')
@@ -223,7 +227,7 @@ try {
 
   step('Build tab: compare with a guide build')
   const guide = win.locator('section', { hasText: 'Compare with a guide build' })
-  await guide.getByPlaceholder('Guide PoB code (eNrt…)').fill(GUIDE_CODE)
+  await guide.getByPlaceholder('Guide PoB code or link (pobb.in, poe.ninja, Maxroll…)').fill(GUIDE_CODE)
   await guide.getByPlaceholder(/Name \(optional/).fill('Test guide')
   await guide.getByRole('button', { name: 'Compare' }).click()
   await guide.getByText('Test guide').waitFor({ timeout: 30_000 })
@@ -240,7 +244,7 @@ try {
 
   step('guide with a passive tree and gems')
   await guide.getByRole('button', { name: 'Change guide' }).click()
-  await guide.getByPlaceholder('Guide PoB code (eNrt…)').fill(GUIDE_TREE_CODE)
+  await guide.getByPlaceholder('Guide PoB code or link (pobb.in, poe.ninja, Maxroll…)').fill(GUIDE_TREE_CODE)
   await guide.getByPlaceholder(/Name \(optional/).fill('Tree guide')
   await guide.getByRole('button', { name: 'Compare' }).click()
   await guide.getByText('Tree guide').waitFor({ timeout: 60_000 })
