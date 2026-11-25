@@ -9,4 +9,4 @@ release/
 *.db-wal
 *.db-shm
 *.tsbuildinfo
-build/
+/build/
