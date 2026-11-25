@@ -50,7 +50,16 @@ writeFileSync(join(filterDir, 'poe2_production_Config.ini'), 'item_filter=NeverS
 const env = { ...process.env, POE2_CLIENT_LOG: logPath, POE2_FILTER_DIR: filterDir, POE2_NO_UPDATES: '1', POE2_LANG: 'en' }
 if (packaged) delete env.POB_ENGINE_DIR
 const app = await electron.launch({ args, env, ...(packaged ? { executablePath: packaged } : {}) })
-const win = await app.firstWindow()
+// The main window (the overlay is a second window of the same page, with #overlay).
+const mainWindow = async () => {
+  for (let i = 0; i < 100; i++) {
+    const w = app.windows().find((p) => p.url() && !p.url().includes('#overlay') && p.url() !== 'about:blank')
+    if (w) return w
+    await new Promise((r) => setTimeout(r, 200))
+  }
+  return app.firstWindow()
+}
+const win = await mainWindow()
 await win.setViewportSize({ width: 1440, height: 1000 })
 const fail = (msg) => {
   console.error('FAIL:', msg)
