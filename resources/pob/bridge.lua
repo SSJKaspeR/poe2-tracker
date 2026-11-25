@@ -688,6 +688,171 @@ function commands.mod_impact(req)
 	return { before = before, items = out }
 end
 
+-- Passive tree suggestions: every unallocated node reachable within `maxDepth` points
+-- (with its path), every allocated node that can be removed with what depends on it
+-- (up to 4 points), and a few swaps (remove + add) checked by PoB as a whole.
+local function nodeInfo(node)
+	return {
+		id = node.id,
+		name = node.dn or node.name,
+		kind = node.isKeystone and "keystone" or node.isNotable and "notable" or (node.type == "Socket" and "jewel") or "small",
+		stats = node.sd or {},
+	}
+end
+
+function commands.tree_options(req)
+	requireBuild()
+	local spec = build.spec
+	local maxDepth = tonumber(req.maxDepth) or 5
+	local calcFunc, baseOutput = build.calcsTab:GetMiscCalculator()
+	local before = pickStats(baseOutput)
+	local used = spec:CountAllocNodes()
+	local adds = {}
+	for _, node in pairs(spec.nodes) do
+		if not node.alloc and node.modKey and node.modKey ~= "" and not node.ascendancyName and node.path
+			and #node.path > 0 and #node.path <= maxDepth and node.type ~= "ClassStart" and node.type ~= "AscendClassStart" then
+			local set = {}
+			local pathNames = {}
+			for _, p in ipairs(node.path) do
+				set[p] = true
+				if p ~= node then pathNames[#pathNames + 1] = p.dn end
+			end
+			local info = nodeInfo(node)
+			info.cost = #node.path
+			info.via = pathNames
+			info.diff = diff(before, pickStats(calcFunc({ addNodes = set })))
+			info.pathIds = {}
+			for _, p in ipairs(node.path) do info.pathIds[#info.pathIds + 1] = p.id end
+			adds[#adds + 1] = info
+		end
+	end
+	local removes = {}
+	for _, node in pairs(spec.allocNodes) do
+		if node.type ~= "ClassStart" and node.type ~= "AscendClassStart" and not node.ascendancyName
+			and (node.allocMode or 0) == 0 and node.modKey and node.modKey ~= "" and node.depends and #node.depends <= 4 then
+			local set = {}
+			local ok = true
+			for _, dep in ipairs(node.depends) do
+				if dep.ascendancyName or (dep.allocMode or 0) ~= 0 then ok = false end
+				set[dep] = true
+				set[dep.id] = true
+			end
+			if ok then
+				local info = nodeInfo(node)
+				info.cost = #node.depends
+				info.diff = diff(before, pickStats(calcFunc({ removeNodes = set })))
+				info.ids = {}
+				for _, dep in ipairs(node.depends) do info.ids[#info.ids + 1] = dep.id end
+				removes[#removes + 1] = info
+			end
+		end
+	end
+	return { before = before, used = used, level = build.characterLevel or 1, adds = adds, removes = removes }
+end
+
+-- Remove some allocated nodes and add others (by id), as one change: the real result of a respec.
+function commands.tree_swap(req)
+	requireBuild()
+	local spec = build.spec
+	local calcFunc, baseOutput = build.calcsTab:GetMiscCalculator()
+	local add, remove = {}, {}
+	for _, id in ipairs(req.add or {}) do
+		local n = spec.nodes[tonumber(id)]
+		if n then add[n] = true end
+	end
+	for _, id in ipairs(req.remove or {}) do
+		local n = spec.nodes[tonumber(id)]
+		if n then remove[n] = true remove[n.id] = true end
+	end
+	local before = pickStats(baseOutput)
+	return { diff = diff(before, pickStats(calcFunc({ addNodes = add, removeNodes = remove }))) }
+end
+
+-- Support gems of the main skill: what each current support brings (disabled → recalculated),
+-- what each compatible support not used elsewhere would add, and the best replacements.
+function commands.support_options(req)
+	requireBuild()
+	local skills = build.skillsTab
+	local group = skills.socketGroupList[build.mainSocketGroup]
+	if not group or not group.gemList then error("no main skill") end
+	local actives = group.displaySkillList or {}
+	if not actives[1] then error("no active skill in the main skill group") end
+	local mainName = actives[1].activeEffect and actives[1].activeEffect.grantedEffect and actives[1].activeEffect.grantedEffect.name
+	local calcFunc, baseOutput = build.calcsTab:GetMiscCalculator()
+	local before = pickStats(baseOutput)
+	local function calc() return pickStats(calcFunc(nil)) end
+
+	-- PoE 2: a support gem can only be used once on the character.
+	local usedIds = {}
+	for _, g in ipairs(skills.socketGroupList) do
+		for _, gem in ipairs(g.gemList or {}) do
+			if gem.gemData and gem.gemData.grantedEffect and gem.gemData.grantedEffect.support then usedIds[gem.gemData.id] = true end
+		end
+	end
+
+	local current = {}
+	for i, gem in ipairs(group.gemList) do
+		if gem.gemData and gem.gemData.grantedEffect and gem.gemData.grantedEffect.support and gem.enabled ~= false then
+			gem.enabled = false
+			local without = calc()
+			gem.enabled = true
+			local fam = gem.gemData.gemFamily
+			current[#current + 1] = {
+				index = i, name = gem.gemData.name, id = gem.gemData.id, diff = diff(without, before),
+				family = type(fam) == "table" and table.concat(fam, ", ") or fam,
+			}
+		end
+	end
+
+	local function instanceFor(gemData)
+		return {
+			level = skills:ProcessGemLevel(gemData), quality = 0, count = 1, enabled = true,
+			enableGlobal1 = true, enableGlobal2 = true,
+			gemId = gemData.id, nameSpec = gemData.name, skillId = gemData.grantedEffectId, gemData = gemData,
+		}
+	end
+
+	local candidates = {}
+	for gemId, gemData in pairs(data.gems) do
+		local ge = gemData.grantedEffect
+		if ge and ge.support and not usedIds[gemId] and not ge.hidden then
+			local ok = false
+			for _, a in ipairs(actives) do
+				if calcLib.canGrantedEffectSupportActiveSkill(ge, a) then ok = true break end
+			end
+			if ok then
+				local inst = instanceFor(gemData)
+				table.insert(group.gemList, inst)
+				local after = calc()
+				table.remove(group.gemList)
+				candidates[#candidates + 1] = {
+					id = gemId, name = gemData.name, tier = (gemData.Tier and gemData.Tier > 0) and gemData.Tier or nil,
+					family = type(gemData.gemFamily) == "table" and table.concat(gemData.gemFamily, ", ") or gemData.gemFamily,
+					lineage = (gemData.tags and gemData.tags.lineage) and true or false,
+					reqStr = gemData.reqStr or 0, reqDex = gemData.reqDex or 0, reqInt = gemData.reqInt or 0,
+					diff = diff(before, after),
+				}
+			end
+		end
+	end
+
+	-- Replacements: the candidates the app found best (ids), each in place of each current support.
+	local swaps = {}
+	for _, id in ipairs(req.tryIds or {}) do
+		local gemData = data.gems[id]
+		if gemData then
+			for _, cur in ipairs(current) do
+				local slotGem = group.gemList[cur.index]
+				group.gemList[cur.index] = instanceFor(gemData)
+				local after = calc()
+				group.gemList[cur.index] = slotGem
+				swaps[#swaps + 1] = { remove = cur.name, add = gemData.name, addId = id, diff = diff(before, after) }
+			end
+		end
+	end
+	return { skill = mainName, before = before, current = current, candidates = candidates, swaps = swaps }
+end
+
 -- Gain from allocating a single passive node (by node id).
 function commands.compare_node(req)
 	requireBuild()

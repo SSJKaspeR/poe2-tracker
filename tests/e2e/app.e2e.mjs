@@ -207,6 +207,16 @@ try {
   await prio.scrollIntoViewIfNeeded()
   await win.screenshot({ path: join(SHOTS, 'screenshot-gear-advice.png') })
 
+  step('Build tab: optimisations (passive tree & supports)')
+  const opt = win.locator('section', { hasText: 'Optimisations: passive tree & supports' })
+  await opt.getByRole('button', { name: 'Find optimisations' }).click()
+  await opt.getByText(/Best next points/).waitFor({ timeout: 60_000 })
+  // The e2e build only punches: a clear message, not an engine error.
+  await opt.getByText(/No skill gem in your main skill group/).waitFor({ timeout: 5_000 })
+  if (/\.lua:\d+/.test(await opt.innerText())) fail('raw engine error shown')
+  await opt.scrollIntoViewIfNeeded()
+  await win.screenshot({ path: join(SHOTS, 'screenshot-optimisations.png') })
+
   step('Build tab: find an upgrade on trade')
   await app.evaluate(({ shell }) => {
     globalThis.__opened = []

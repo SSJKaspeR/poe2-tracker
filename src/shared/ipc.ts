@@ -335,6 +335,8 @@ export interface TrackerApi {
   addLoot(runId: string, item: { label: string; itemId?: string; quantity: number; manualValue?: number }): Promise<RunLinesDTO>
   removeLine(runId: string, kind: 'loot' | 'investment', lineId: number): Promise<RunLinesDTO>
   refreshPrices(): Promise<AppStatus>
+  /** Passive tree and support gem suggestions (a few seconds the first time per build version). */
+  getOptimisations(): Promise<Result<OptimisationsDTO>>
   /** Equipped items line by line, with what each line brings. */
   getItemSheets(): Promise<Result<ItemSheetDTO[]>>
   /** Best runes for empty sockets, with prices. */
@@ -457,5 +459,36 @@ export interface ItemSheetDTO {
   lines: { kind: 'implicit' | 'explicit'; text: string; crafted: boolean; effects: string[]; score: number }[]
   /** Explicit line to replace first, null if none stands out. */
   weakest: number | null
+}
+
+/** Passive tree and support gem suggestions for the active build. */
+export interface OptimisationsDTO {
+  tree: {
+    /** Best next points, by gain per point spent. */
+    adds: { id: number; name: string; kind: string; stats: string[]; cost: number; via: string[]; score: number; perPoint: number; impact: ImpactLine[] }[]
+    /** Allocated points that bring the least (respec candidates). */
+    removes: { id: number; name: string; kind: string; stats: string[]; cost: number; loss: number; impact: ImpactLine[] }[]
+    /** Remove + add, calculated together by PoB. */
+    swaps: { remove: string; removePoints: number; add: string; addPoints: number; score: number; impact: ImpactLine[] }[]
+  }
+  supports: {
+    skill: string | null
+    current: { name: string; score: number; impact: ImpactLine[]; note: string | null }[]
+    /** Compatible supports not used elsewhere (PoE 2: one copy each), best of each family. */
+    candidates: {
+      id: string
+      name: string
+      tier: number | null
+      family: string | null
+      lineage: boolean
+      price: number | null
+      score: number
+      impact: ImpactLine[]
+      /** Current support of the same family it would replace (they don't stack). */
+      replaces: string | null
+    }[]
+    swaps: { remove: string; add: string; score: number; impact: ImpactLine[] }[]
+    error?: string
+  } | null
 }
 

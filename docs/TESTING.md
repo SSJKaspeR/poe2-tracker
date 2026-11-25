@@ -138,3 +138,18 @@ and one score (damage % + effective HP % + resistance fixes, the 75% cap weighs 
 Note: an item copied in game lists `Sockets:` before `Item Level:`; PoB reads a `Sockets:` line placed after it
 as a mod (and doubles the sockets on reload). Test items follow the game's order.
 
+## Optimisations (passive tree & supports)
+
+On demand from the Build tab (≈ 1–3 s), cached per build version; the best pick also appears in the
+Dashboard verdicts once calculated.
+
+| Part | How (Path of Building) | Rules |
+|---|---|---|
+| Best next points | bridge `tree_options`: every unallocated node within 5 points, calculated with its path (`addNodes`) | ranked by gain per point; the same small passive kept only at its closest |
+| Least useful points | allocated nodes removable with their dependents (≤ 4 points, `removeNodes`) | ranked by loss per point |
+| Respec ideas | bridge `tree_swap`: remove + add calculated together | removal frees enough points, is not on the new path, loses less than the add gains |
+| Supports | bridge `support_options`: each current support disabled → its value; each compatible support (`calcLib.canGrantedEffectSupportActiveSkill`) not used elsewhere added → its gain; best candidates tried in place of each support | PoE 2: one copy of each support per character; best of each family (same family = replaces it); Lineage marked and priced; supports that lower or don't change PoB's single-target numbers (e.g. Multishot) are explained, never proposed for replacement |
+
+Tests: `tests/unit/optimisations.test.ts`; engine test on a Lightning Arrow build with a bow equipped (without a
+bow the skill deals no damage and no support changes anything); e2e (card, clear message for a build with no gem).
+

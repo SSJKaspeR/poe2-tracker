@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { BuildSnapshotDTO, BuildVersionDTO, GearCheckDTO, StatMap } from '@shared/ipc'
 import { Card } from '../components/Card'
 import { ItemSheets, RuneAdvice, UpgradePriorities } from '../components/GearAdvisor'
+import { Optimisations } from '../components/Optimisations'
 import { GuideCompare } from '../components/GuideCompare'
 import { TradeUpgrade } from '../components/TradeUpgrade'
 import { STAT_HELP, formatDuration, formatStat, isImprovement, statLabel } from '../format'
@@ -90,6 +91,8 @@ export function BuildPage() {
             document.getElementById('trade-upgrade')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
           }}
         />
+
+        <Optimisations />
 
         <div id="trade-upgrade">
           <TradeUpgrade slot={tradeSlot} slots={(snapshot?.items ?? []).map((i) => i.slot)} onSlot={setTradeSlot} />

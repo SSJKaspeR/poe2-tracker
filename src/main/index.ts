@@ -86,6 +86,7 @@ function registerIpc(svc: TrackerService): void {
   ipcMain.handle('verdicts:get', () => svc.verdicts())
   ipcMain.handle('gear:runes', () => svc.runeAdvice())
   ipcMain.handle('gear:sheets', () => svc.itemSheets())
+  ipcMain.handle('build:optimisations', () => svc.optimisations())
   ipcMain.handle('gear:priorities', () =>
     svc.upgradePriorities((done, total) => mainWindow?.webContents.send('gear:progress', { done, total }))
   )

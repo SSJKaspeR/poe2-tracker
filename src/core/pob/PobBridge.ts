@@ -233,6 +233,21 @@ export class PobBridge {
     return this.request('mod_impact', slot ? { slot } : {}, 120_000)
   }
 
+  /** Passive tree: reachable nodes (with path), removable nodes, used points. */
+  treeOptions(maxDepth = 5): Promise<TreeOptions> {
+    return this.request('tree_options', { maxDepth }, 120_000)
+  }
+
+  /** Real result of removing and adding passive nodes as one change. */
+  treeSwap(add: number[], remove: number[]): Promise<{ diff: Record<string, StatChange> }> {
+    return this.request('tree_swap', { add, remove }, 60_000)
+  }
+
+  /** Main skill supports: current value, compatible unused supports, replacements of `tryIds`. */
+  supportOptions(tryIds: string[] = []): Promise<SupportOptions> {
+    return this.request('support_options', { tryIds }, 120_000)
+  }
+
   /** Empty rune sockets and what each compatible rune / soul core would change. */
   runeOptions(slot?: string): Promise<RuneOptions> {
     return this.request('rune_options', slot ? { slot } : {}, 120_000)
@@ -330,5 +345,41 @@ export interface ModImpact {
     rarity: string
     lines: { kind: 'implicit' | 'explicit'; text: string; crafted: boolean; diff: Record<string, { before: number; after: number; delta: number }> }[]
   }[]
+}
+
+export interface TreeNodeOption {
+  id: number
+  name: string
+  kind: 'keystone' | 'notable' | 'jewel' | 'small'
+  stats: string[]
+  /** Points it costs (path included) or frees (dependents included). */
+  cost: number
+  diff: Record<string, { before: number; after: number; delta: number }>
+}
+
+export interface TreeOptions {
+  before: Record<string, number>
+  used: number
+  level: number
+  adds: (TreeNodeOption & { via: string[]; pathIds: number[] })[]
+  removes: (TreeNodeOption & { ids: number[] })[]
+}
+
+export interface SupportOptions {
+  skill: string | null
+  before: Record<string, number>
+  current: { index: number; name: string; id: string; family?: string; diff: Record<string, { before: number; after: number; delta: number }> }[]
+  candidates: {
+    id: string
+    name: string
+    tier?: number
+    family?: string
+    lineage: boolean
+    reqStr: number
+    reqDex: number
+    reqInt: number
+    diff: Record<string, { before: number; after: number; delta: number }>
+  }[]
+  swaps: { remove: string; add: string; addId: string; diff: Record<string, { before: number; after: number; delta: number }> }[]
 }
 

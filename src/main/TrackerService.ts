@@ -9,6 +9,7 @@ import { guessActiveFilter, listFilters, poe2DocumentsDirs } from '../core/filte
 import { hiddenValuable, parseFilter, type ParsedFilter } from '../core/filter/LootFilter'
 import { EventEmitter } from 'node:events'
 import { checkGear } from '../core/build/gearCheck'
+import { rankSupports, rankSupportSwaps, rankTree, swapCandidates } from '../core/build/optimisations'
 import { goodItemMods, itemSheets, rankRuneOptions, rankSlots, defensiveLines, type SlotPreview } from '../core/build/gearAdvice'
 import { compareGear, impactScore, type DetailedItem } from '../core/build/targetCompare'
 import { compareSkills, compareTree, type SkillGroup, type TreeDetail } from '../core/build/treeGemsCompare'
@@ -34,6 +35,7 @@ import type {
   GuideComparisonDTO,
   LootFilterDTO,
   RuneAdviceDTO,
+  OptimisationsDTO,
   ItemSheetDTO,
   UpgradePriorityDTO,
   VerdictDTO,
@@ -85,6 +87,7 @@ export class TrackerService extends EventEmitter {
   private readonly tradeWeightCache = new Map<string, TradeWeightsDTO>()
   private refreshing: Promise<void> | null = null
   private priorityCache: { versionId: number; value: UpgradePriorityDTO[] } | null = null
+  private optimisationCache: { versionId: number; value: OptimisationsDTO } | null = null
   private stopped = false
   private readonly filterDirs: string[]
   private readonly logFn?: (msg: string) => void
@@ -399,7 +402,34 @@ export class TrackerService extends EventEmitter {
     }
     const exalted = this.priceBook.get('exalted')
     const rate = exalted && exalted.value > 0 ? 1 / exalted.value : null
-    return computeVerdicts({ runs, build, money: (d) => formatCurrency(d, rate) })
+    const out = computeVerdicts({ runs, build, money: (d) => formatCurrency(d, rate) })
+    // Optimisations already calculated for this build version (never computed here: it takes seconds).
+    const opt = this.optimisationCache?.versionId === this.activeVersionId() ? this.optimisationCache.value : null
+    const extra: VerdictDTO[] = []
+    const swap = opt?.supports?.swaps[0]
+    if (swap && swap.score >= 5) {
+      extra.push({
+        id: 'build.support-swap',
+        area: 'build',
+        severity: 'tip',
+        title: `Better support: ${swap.add} instead of ${swap.remove}`,
+        detail: `${swap.impact.slice(0, 2).map((l) => l.text).join(', ')} according to Path of Building.`,
+        tab: 'build'
+      })
+    }
+    const node = opt?.tree.adds[0]
+    if (node && node.perPoint >= 2) {
+      extra.push({
+        id: 'build.next-point',
+        area: 'build',
+        severity: 'tip',
+        title: `Next passive: ${node.name} (${node.cost} point${node.cost > 1 ? 's' : ''})`,
+        detail: `${node.impact.slice(0, 2).map((l) => l.text).join(', ')} according to Path of Building.`,
+        tab: 'build'
+      })
+    }
+    const rank = { warn: 0, tip: 1, good: 2 } as const
+    return [...out, ...extra].sort((a, b) => rank[a.severity] - rank[b.severity])
   }
 
   // ── Loot filter ────────────────────────────────────────────────────────────
@@ -652,6 +682,52 @@ export class TrackerService extends EventEmitter {
 
   /** PoB weights per stat for upgrading this slot (cached per build version and slot). */
   // ── Gear advice ───────────────────────────────────────────────────────────
+
+  /**
+   * Passive tree and support gem suggestions (PoB): best next points per point spent, least
+   * useful points, respecs checked as a whole, supports of the main skill and better ones.
+   * About 1–3 s per build version (cached).
+   */
+  async optimisations(): Promise<Result<OptimisationsDTO>> {
+    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    const versionId = this.activeVersionId()
+    if (versionId === null) return { ok: false, error: 'Import your build first' }
+    if (this.optimisationCache?.versionId === versionId) return { ok: true, value: this.optimisationCache.value }
+    await this.pobReady
+    const res = await wrap(() =>
+      this.withPob(async () => {
+        const tree = rankTree(await this.pob!.treeOptions(5))
+        const swaps: OptimisationsDTO['tree']['swaps'] = []
+        for (const c of swapCandidates(tree.adds, tree.removes)) {
+          const r = await this.pob!.treeSwap(c.add.pathIds, c.remove.ids)
+          const imp = summarizeImpact(r.diff, {})
+          if (imp.score > 0.5) {
+            swaps.push({ remove: c.remove.name, removePoints: c.remove.cost, add: c.add.name, addPoints: c.add.cost, score: imp.score, impact: imp.lines })
+          }
+        }
+        swaps.sort((a, b) => b.score - a.score)
+
+        let supports: OptimisationsDTO['supports'] = null
+        try {
+          const priceOf = (name: string) => this.priceBook.get(name)?.value ?? null
+          const first = await this.pob!.supportOptions([])
+          const ranked = rankSupports(first, priceOf)
+          const tried = ranked.current.length ? await this.pob!.supportOptions(ranked.candidates.map((c) => c.id)) : first
+          const keep = ranked.current.filter((c) => c.note !== null).map((c) => c.name)
+          supports = { ...ranked, swaps: rankSupportSwaps(tried, keep) }
+        } catch (err) {
+          const raw = (err instanceof Error ? err.message : String(err)).replace(/^.*?\.lua:\d+:\s*/, '')
+          const error = /no main skill|no active skill/i.test(raw)
+            ? 'No skill gem in your main skill group (default attack only): nothing to suggest for supports.'
+            : raw
+          supports = { skill: null, current: [], candidates: [], swaps: [], error }
+        }
+        return { tree: { adds: tree.adds, removes: tree.removes, swaps: swaps.slice(0, 3) }, supports }
+      })
+    )
+    if (res.ok && this.activeVersionId() === versionId) this.optimisationCache = { versionId, value: res.value }
+    return res
+  }
 
   /** Every equipped item, line by line, with what each line brings to the build. */
   async itemSheets(): Promise<Result<ItemSheetDTO[]>> {

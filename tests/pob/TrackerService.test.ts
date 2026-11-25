@@ -429,6 +429,38 @@ describe.skipIf(!paths)('TrackerService gear advice', () => {
   })
 })
 
+describe.skipIf(!paths)('TrackerService optimisations (tree & supports)', () => {
+  it('best next points, respecs checked by PoB, supports of the main skill', async () => {
+    const svc = await startService(folder())
+    unwrap(await svc.importBuild(fx('build-guide-treegems.pobcode'), { newBuild: false }))
+    // Lightning Arrow needs a bow to deal damage.
+    unwrap(await svc.equipItem('Item Class: Bows\nRarity: Normal\nCrude Bow\n--------\nItem Level: 10'))
+    const o = unwrap(await svc.optimisations())
+
+    expect(o.tree.adds.length).toBeGreaterThan(0)
+    expect(o.tree.adds.map((a) => a.perPoint)).toEqual([...o.tree.adds.map((a) => a.perPoint)].sort((a, b) => b - a))
+    expect(o.tree.adds.every((a) => a.cost >= 1 && a.cost <= 5 && a.impact.length > 0)).toBe(true)
+    expect(o.tree.removes.length).toBeGreaterThan(0)
+    for (const s of o.tree.swaps) expect(s.removePoints).toBeGreaterThanOrEqual(s.addPoints)
+
+    const sup = o.supports!
+    expect(sup.skill).toBe('Lightning Arrow')
+    expect(sup.current.map((c) => c.name)).toEqual(['Lightning Penetration', 'Multishot I'])
+    expect(sup.current[0]!.note).toBeNull()
+    expect(sup.current[1]!.note).toMatch(/single-target/) // more projectiles: PoB's number goes down
+    expect(sup.candidates.length).toBeGreaterThan(0)
+    expect(sup.candidates.map((c) => c.name)).not.toContain('Lightning Penetration') // one copy per character
+    expect(sup.swaps.every((s) => s.remove !== 'Multishot I')).toBe(true)
+
+    // Once calculated, the best next passive shows up in the Dashboard verdicts.
+    expect((await svc.verdicts()).map((v) => v.id)).toContain('build.next-point')
+
+    const t = Date.now()
+    expect(unwrap(await svc.optimisations())).toBe(o) // cached for this build version
+    expect(Date.now() - t).toBeLessThan(50)
+  })
+})
+
 describe.skipIf(!paths)('TrackerService loot filter', () => {
   it("finds the player's filter and lists priced items it hides", async () => {
     const f = folder()
