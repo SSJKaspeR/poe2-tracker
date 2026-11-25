@@ -17,3 +17,19 @@ export function hotkeyLabel(accelerator: string | null): string | null {
   if (!accelerator) return null
   return HOTKEY_CHOICES.find((c) => c.accelerator === accelerator)?.label ?? accelerator
 }
+
+/** Hotkey that shows or hides the in-game overlay. */
+export const OVERLAY_HOTKEY_CHOICES = [
+  { accelerator: 'CommandOrControl+Shift+O', label: 'Ctrl+Shift+O' },
+  { accelerator: 'CommandOrControl+Shift+Z', label: 'Ctrl+Shift+Z' },
+  { accelerator: 'Alt+O', label: 'Alt+O' },
+  { accelerator: 'F8', label: 'F8' },
+  { accelerator: 'F9', label: 'F9' }
+] as const
+
+export const DEFAULT_OVERLAY_HOTKEY = OVERLAY_HOTKEY_CHOICES[0].accelerator
+
+export function overlayHotkeyLabel(accelerator: string | null): string | null {
+  if (!accelerator) return null
+  return OVERLAY_HOTKEY_CHOICES.find((c) => c.accelerator === accelerator)?.label ?? accelerator
+}

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { HOTKEY_CHOICES } from '@shared/hotkeys'
+import { HOTKEY_CHOICES, OVERLAY_HOTKEY_CHOICES } from '@shared/hotkeys'
 import { LANGS } from '@shared/i18n'
 import { useT, useTracker } from '../store'
 import { Button } from './Card'
@@ -77,6 +77,54 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
               <option value="">{t('Off')}</option>
             </select>
           </label>
+          {status.compareHotkey.error && <p className="text-xs text-red-400">{status.compareHotkey.error}</p>}
+
+          <div className="space-y-3 border-t border-stone-800 pt-4">
+            <label className="flex items-start justify-between gap-4">
+              <span>
+                <span className="block text-stone-300">{t('In-game overlay')}</span>
+                <span className="text-xs text-stone-500">
+                  {t('Map timer, profit and item verdicts over the game. Clicks go through it. Set the game to Windowed or Windowed Fullscreen.')}
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                aria-label={t('In-game overlay')}
+                className="mt-1 accent-amber-500"
+                checked={status.overlay.enabled}
+                onChange={(e) => void window.tracker.setOverlay({ enabled: e.target.checked }).then(setStatus)}
+              />
+            </label>
+            <label className="flex items-start justify-between gap-4">
+              <span>
+                <span className="block text-stone-300">{t('Show / hide shortcut')}</span>
+                <span className="text-xs text-stone-500">{t('Item verdicts still pop up when the overlay is hidden.')}</span>
+              </span>
+              <select
+                aria-label={t('Show / hide shortcut')}
+                className="rounded-md border border-stone-700 bg-stone-950 px-2 py-1"
+                value={status.overlay.hotkey.accelerator ?? ''}
+                onChange={(e) => void window.tracker.setOverlayHotkey(e.target.value || null).then(setStatus)}
+              >
+                {OVERLAY_HOTKEY_CHOICES.map((c) => (
+                  <option key={c.accelerator} value={c.accelerator}>
+                    {c.label}
+                  </option>
+                ))}
+                <option value="">{t('Off')}</option>
+              </select>
+            </label>
+            {status.overlay.hotkey.error && <p className="text-xs text-red-400">{status.overlay.hotkey.error}</p>}
+            <div className="flex justify-end">
+              <Button
+                variant="ghost"
+                disabled={!status.overlay.enabled}
+                onClick={() => void window.tracker.setOverlay({ locked: !status.overlay.locked }).then(setStatus)}
+              >
+                {status.overlay.locked ? t('Move the overlay') : t('Lock the overlay')}
+              </Button>
+            </div>
+          </div>
         </div>
         <div className="mt-5 flex justify-end">
           <Button onClick={onClose}>{t('Close')}</Button>

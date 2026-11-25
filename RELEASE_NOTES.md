@@ -13,5 +13,6 @@ SmartScreen shows a warning — click "More info" then "Run anyway". Once instal
 - Build: import your Path of Building code, item comparison (Ctrl+C on the item in game, then Ctrl+Shift+C), gear check, guide comparison
   (gear, passive tree, gems), trade upgrade search opened on the official trade site
 - Loot filter: priced items your filter hides
+- In-game overlay: current map, profit per hour, item verdicts over the game (clicks go through it; game in Windowed or Windowed Fullscreen)
 - Interface in English or French, settings panel (language, automatic updates, comparison shortcut), app icon
 - Calculation engine: Path of Building Community (PoE 2), unmodified, MIT — see THIRD_PARTY_NOTICES.md

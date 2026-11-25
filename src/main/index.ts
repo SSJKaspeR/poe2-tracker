@@ -1,14 +1,26 @@
+import type { AppStatus } from '../shared/ipc'
 import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, shell } from 'electron'
 import { join, resolve } from 'node:path'
 import { poe2DocumentsDirs } from '../core/filter/findLootFilter'
 import { Updater } from './updater'
 import { resolvePobPaths } from '../core/pob/paths'
 import { TrackerService } from './TrackerService'
+import { OverlayWindow } from './overlay'
 
 let mainWindow: BrowserWindow | null = null
 let service: TrackerService | null = null
 let registeredHotkey: string | null = null
 let updater: Updater | null = null
+let overlay: OverlayWindow | null = null
+let registeredOverlayHotkey: string | null = null
+
+function loadRenderer(win: BrowserWindow, hash?: string): void {
+  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
+    void win.loadURL(process.env.ELECTRON_RENDERER_URL + (hash ? `#${hash}` : ''))
+  } else {
+    void win.loadFile(join(import.meta.dirname, '../renderer/index.html'), hash ? { hash } : undefined)
+  }
+}
 
 function pobOptions() {
   // Packaged: engine pack shipped in resources/engine. Dev: build/engine or .pob (npm run setup:pob).
@@ -47,11 +59,39 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
-  } else {
-    void mainWindow.loadFile(join(import.meta.dirname, '../renderer/index.html'))
+  loadRenderer(mainWindow)
+  // Closing the main window quits the app (the overlay alone would keep it running invisibly).
+  mainWindow.on('closed', () => {
+    mainWindow = null
+    app.quit()
+  })
+}
+
+/** Send to every window of the app (main window and overlay). */
+function broadcast(channel: string, payload: unknown): void {
+  mainWindow?.webContents.send(channel, payload)
+  overlay?.send(channel, payload)
+}
+
+function syncOverlayHotkey(svc: TrackerService): void {
+  if (registeredOverlayHotkey) globalShortcut.unregister(registeredOverlayHotkey)
+  registeredOverlayHotkey = null
+  svc.overlayHotkeyError = null
+  const accelerator = svc.getOverlayHotkey()
+  if (accelerator) {
+    let ok = false
+    try {
+      ok = globalShortcut.register(accelerator, () => {
+        const o = svc.status().overlay
+        svc.setOverlay(o.enabled ? { visible: !o.visible } : { enabled: true })
+      })
+    } catch {
+      ok = false
+    }
+    if (ok) registeredOverlayHotkey = accelerator
+    else svc.overlayHotkeyError = svc.t('This shortcut is already used by another app: choose another one.')
   }
+  svc.emitStatus()
 }
 
 function registerIpc(svc: TrackerService): void {
@@ -133,6 +173,18 @@ function registerIpc(svc: TrackerService): void {
     syncCompareHotkey(svc)
     return svc.status()
   })
+  ipcMain.handle('overlay:set', (_e, change: { enabled?: boolean; visible?: boolean; locked?: boolean }) => {
+    svc.setOverlay(change)
+    return svc.status()
+  })
+  ipcMain.handle('overlay:hotkey', (_e, accelerator: string | null) => {
+    svc.setOverlayHotkey(accelerator)
+    syncOverlayHotkey(svc)
+    return svc.status()
+  })
+  ipcMain.on('overlay:resize', (e, width: number, height: number) => {
+    if (overlay?.window && e.sender === overlay.window.webContents) overlay.resize(width, height)
+  })
 
   ipcMain.handle('prices:search', (_e, q: string) => svc.searchPrices(q))
   ipcMain.handle('prices:refresh', async () => {
@@ -192,7 +244,7 @@ function syncCompareHotkey(svc: TrackerService): void {
     if (ok) registeredHotkey = accelerator
     else svc.hotkeyError = svc.t('This shortcut is already used by another app: choose another one.')
   }
-  mainWindow?.webContents.send('status:changed', svc.status())
+  svc.emitStatus()
 }
 
 // One instance only: a second window would double every poe.ninja request and share the database.
@@ -223,11 +275,20 @@ app.whenReady().then(async () => {
       if (process.env.POE2_TRACKER_DEBUG) console.log(msg)
     }
   })
-  service.on('status', (status) => mainWindow?.webContents.send('status:changed', status))
-  service.on('item-compared', (result) => {
-    mainWindow?.webContents.send('item:compared', result)
+  const svc = service
+  overlay = new OverlayWindow({
+    preload: join(import.meta.dirname, '../preload/index.mjs'),
+    load: (win) => loadRenderer(win, 'overlay'),
+    position: () => svc.getOverlayPosition(),
+    savePosition: (pos) => svc.setOverlayPosition(pos),
+    onReady: (win) => win.webContents.send('status:changed', svc.status())
   })
-  service.on('hotkey-miss', (reason) => mainWindow?.webContents.send('hotkey:miss', reason))
+  service.on('status', (status: AppStatus) => {
+    broadcast('status:changed', status)
+    overlay?.apply(status.overlay)
+  })
+  service.on('item-compared', (result) => broadcast('item:compared', result))
+  service.on('hotkey-miss', (reason) => broadcast('hotkey:miss', reason))
   // Same path as the hotkey, for the end-to-end test (a global shortcut can't be pressed there).
   const svcRef = service
   app.on('compare-hotkey' as never, () => void compareFromClipboard(svcRef))
@@ -235,6 +296,8 @@ app.whenReady().then(async () => {
   createWindow()
   await service.start()
   syncCompareHotkey(service)
+  syncOverlayHotkey(service)
+  overlay.apply(service.status().overlay)
   await startUpdater(service)
 
   app.on('activate', () => {

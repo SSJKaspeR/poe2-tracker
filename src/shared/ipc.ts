@@ -66,7 +66,19 @@ export interface AppStatus {
   updateChecks: boolean
   /** Hotkey that reads the clipboard once to compare the item copied in game (null = off). */
   compareHotkey: { accelerator: string | null; label: string | null; error: string | null }
+  /** Small always-on-top window over the game (needs the game in windowed or windowed fullscreen). */
+  overlay: OverlayStateDTO
   session: SessionSummaryDTO | null
+}
+
+export interface OverlayStateDTO {
+  /** Turned on in Settings. */
+  enabled: boolean
+  /** Shown right now (the show/hide hotkey switches it). */
+  visible: boolean
+  /** Locked: clicks go through to the game. Unlocked: it can be dragged to a new place. */
+  locked: boolean
+  hotkey: { accelerator: string | null; label: string | null; error: string | null }
 }
 
 export type StatMap = Record<string, number>
@@ -325,6 +337,10 @@ export interface TrackerApi {
   readClipboardOnce(): Promise<string>
   /** Change the compare hotkey (Electron accelerator), null to turn it off. */
   setCompareHotkey(accelerator: string | null): Promise<AppStatus>
+  setOverlay(change: { enabled?: boolean; visible?: boolean; locked?: boolean }): Promise<AppStatus>
+  setOverlayHotkey(accelerator: string | null): Promise<AppStatus>
+  /** Overlay window only: size of its content, so the window fits it. */
+  overlayResize(width: number, height: number): void
   /** Hotkey pressed but the clipboard held no equipment. */
   onHotkeyMiss(listener: (reason: 'not-item' | 'not-gear') => void): () => void
   onItemCompared(listener: (r: Result<ItemComparisonDTO>) => void): () => void

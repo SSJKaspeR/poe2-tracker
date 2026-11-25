@@ -15,3 +15,25 @@ body,
 body {
   @apply bg-stone-950 text-stone-200 antialiased;
 }
+
+/* In-game overlay window: transparent page, only the panel is drawn. */
+html.overlay,
+html.overlay body {
+  background: transparent;
+  overflow: hidden;
+  height: auto;
+}
+
+html.overlay #root {
+  display: inline-block;
+  height: auto;
+}
+
+.overlay-drag {
+  -webkit-app-region: drag;
+  cursor: move;
+}
+
+.overlay-no-drag {
+  -webkit-app-region: no-drag;
+}

@@ -348,6 +348,66 @@ try {
   if (!text.includes('1 kill / 1') || !text.includes('Rush maps')) fail(`sessions: ${text}`)
   await win.screenshot({ path: join(SHOTS, 'screenshot-sessions.png') })
 
+  step('in-game overlay: map info, verdict pop-up when hidden, move and lock, turn off')
+  const overlayState = () =>
+    app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() === 'PoE2 Tracker overlay')
+      return w ? { visible: w.isVisible(), top: w.isAlwaysOnTop(), focusable: w.isFocusable() } : null
+    })
+  const until = async (what, check) => {
+    for (let i = 0; i < 50; i++) {
+      if (check(await overlayState())) return
+      await win.waitForTimeout(200)
+    }
+    const page = app.windows().find((w) => w.url().includes('#overlay'))
+    const shown = page ? await page.locator('#root').innerHTML().catch(() => '?') : 'no page'
+    fail(`overlay: ${what} (${JSON.stringify(await overlayState())}) ${shown.slice(0, 1500)}`)
+  }
+  const overlayPage = async () => {
+    for (let i = 0; i < 50; i++) {
+      const p = app.windows().find((w) => w.url().includes('#overlay'))
+      if (p) return p
+      await win.waitForTimeout(200)
+    }
+    throw new Error('no overlay window')
+  }
+  let ov = await overlayPage()
+  await ov.getByText(/Today: \d+ maps?/).waitFor({ timeout: 10_000 })
+  await until('shown on top, never focused', (s) => s?.visible && s.top && !s.focusable)
+  // The verdict of the last comparison (a few steps ago) goes away after 15 s.
+  await ov.getByTestId('overlay-comparison').waitFor({ state: 'hidden', timeout: 20_000 })
+  // Hidden with the show/hide shortcut (same code path)…
+  await win.evaluate(() => window.tracker.setOverlay({ visible: false }))
+  await until('hidden', (s) => s && !s.visible)
+  // …the item verdict still pops up, without the map info.
+  await app.evaluate(async ({ clipboard }, text) => clipboard.writeText(text), ITEM)
+  await pressCompareHotkey()
+  await ov.getByTestId('overlay-comparison').waitFor({ timeout: 15_000 })
+  await until('shown for the comparison', (s) => s?.visible)
+  if (await ov.getByText(/Today:/).isVisible()) fail('overlay map info shown while hidden')
+  const verdict = await ov.getByTestId('overlay-comparison').innerText()
+  // The same item as the one equipped earlier.
+  if (!verdict.includes('No real difference')) fail(`overlay verdict: ${verdict}`)
+  await win.evaluate(() => window.tracker.setOverlay({ visible: true }))
+  await ov.getByText(/Today:/).waitFor({ timeout: 5_000 })
+  await ov.getByTestId('overlay').screenshot({ path: join(SHOTS, 'screenshot-overlay.png') })
+  // Move it from Settings, lock it from the overlay itself.
+  await win.getByRole('button', { name: 'Settings' }).click()
+  const settingsDialog = win.getByRole('dialog', { name: 'Settings' })
+  await settingsDialog.getByRole('button', { name: 'Move the overlay' }).click()
+  await ov.getByText('Drag to move').waitFor({ timeout: 5_000 })
+  await until('clickable while unlocked', (s) => s?.focusable)
+  await ov.getByRole('button', { name: 'Lock' }).click()
+  await ov.getByText('Drag to move').waitFor({ state: 'hidden', timeout: 5_000 })
+  await until('locked again', (s) => s && !s.focusable)
+  // Turned off: no window at all; back on: it comes back.
+  await settingsDialog.getByLabel('In-game overlay').uncheck()
+  await until('closed', (s) => s === null)
+  await settingsDialog.getByLabel('In-game overlay').check()
+  ov = await overlayPage()
+  await ov.getByText(/Today:/).waitFor({ timeout: 10_000 })
+  await settingsDialog.getByRole('button', { name: 'Close' }).click()
+
   step('Settings: switch the interface to French, then back to English')
   await win.getByRole('button', { name: 'Settings' }).click()
   const settings = win.getByRole('dialog', { name: 'Settings' })

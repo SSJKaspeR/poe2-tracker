@@ -32,6 +32,7 @@ Free, open-source, local-first desktop tracker for **Path of Exile 2**.
 | Trade upgrade search: PoB ranks the stats that help your build most for a slot; force / exclude stats, min values, max price; preview of the gain; opens a pre-filled search on the official trade site (no trade API calls) | ✅ |
 | Gear check: empty rune sockets, sockets still possible, open modifiers, missing quality, outdated bases, low item level | ✅ |
 | Best next upgrade, trade search for rares, AI explanations | 🚧 |
+| In-game overlay: map name and timer, deaths, today's and the session's profit/hour, verdict of the item compared with the shortcut; clicks go through it; show/hide shortcut (Ctrl+Shift+O), movable (game in Windowed or Windowed Fullscreen) | ✅ |
 | Interface in English (default) or French (Settings) | ✅ |
 | Settings: language, automatic updates on/off, item comparison shortcut | ✅ |
 | Windows installer (built and tested on Windows by GitHub Actions) | ✅ first version |
@@ -85,6 +86,8 @@ The app follows GGG's [third-party policy](https://www.pathofexile.com/developer
 - It reads `Client.txt` (the game log) to track maps, and says so in the app.
 - It reads the clipboard **once per press of its shortcut**, never in the background, and never sends
   keys to the game.
+- The in-game overlay only shows what the app already knows (Client.txt, the item compared on a key press).
+  It never reads the screen, never takes the focus and lets every click through to the game.
 - It reads your loot filter only after you click "Analyse my loot filter", and never changes it.
 - Build import: paste a PoB code or a link (pobb.in, poe.ninja, Maxroll, poe2db, Pastebin). A link is
   downloaded once, when you click Import. "Paste & import" reads the clipboard once, on that click.

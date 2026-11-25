@@ -1,4 +1,5 @@
 import { checkClipboard, DEFAULT_HOTKEY, hotkeyLabel, type ClipboardCheck } from '../core/clipboard/compareHotkey'
+import { DEFAULT_OVERLAY_HOTKEY, overlayHotkeyLabel } from '../shared/hotkeys'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import axios from 'axios'
 import { isLang, langFromLocale, translator, type Lang, type Translator } from '../shared/i18n'
@@ -96,6 +97,9 @@ export class TrackerService extends EventEmitter {
   private readonly systemLang: Lang
   /** Set by the main process when the hotkey can't be registered (taken by another app). */
   hotkeyError: string | null = null
+  overlayHotkeyError: string | null = null
+  /** Overlay unlocked to be moved (never kept after a restart). */
+  private overlayUnlocked = false
   private parsedFilter: { path: string; mtime: number; filter: ParsedFilter } | null = null
 
   constructor(opts: {
@@ -272,6 +276,12 @@ export class TrackerService extends EventEmitter {
         accelerator: this.getCompareHotkey(),
         label: hotkeyLabel(this.getCompareHotkey()),
         error: this.hotkeyError
+      },
+      overlay: {
+        enabled: this.getSetting('overlayEnabled') !== '0',
+        visible: this.getSetting('overlayVisible') !== '0',
+        locked: !this.overlayUnlocked,
+        hotkey: { accelerator: this.getOverlayHotkey(), label: overlayHotkeyLabel(this.getOverlayHotkey()), error: this.overlayHotkeyError }
       },
       session: this.activeSessionSummary()
     }
@@ -894,6 +904,50 @@ export class TrackerService extends EventEmitter {
   setCompareHotkey(accelerator: string | null): void {
     this.setSetting('compareHotkey', accelerator ?? '')
     this.emitStatus()
+  }
+
+  // ── Overlay ───────────────────────────────────────────────────────────────
+
+  /** Show/hide hotkey of the overlay, null when turned off. */
+  getOverlayHotkey(): string | null {
+    const v = this.getSetting('overlayHotkey')
+    if (v === null) return DEFAULT_OVERLAY_HOTKEY
+    return v === '' ? null : v
+  }
+
+  setOverlayHotkey(accelerator: string | null): void {
+    this.setSetting('overlayHotkey', accelerator ?? '')
+    this.emitStatus()
+  }
+
+  setOverlay(change: { enabled?: boolean; visible?: boolean; locked?: boolean }): void {
+    if (change.enabled !== undefined) {
+      this.setSetting('overlayEnabled', change.enabled ? '1' : '0')
+      // Turning it on shows it; turning it off locks it again.
+      if (change.enabled) this.setSetting('overlayVisible', '1')
+      else this.overlayUnlocked = false
+    }
+    if (change.visible !== undefined) this.setSetting('overlayVisible', change.visible ? '1' : '0')
+    if (change.locked !== undefined) {
+      this.overlayUnlocked = !change.locked
+      // Unlocking to move it: it must be visible.
+      if (!change.locked) this.setSetting('overlayVisible', '1')
+    }
+    this.emitStatus()
+  }
+
+  /** Where the player put the overlay (screen coordinates), null = default place. */
+  getOverlayPosition(): { x: number; y: number } | null {
+    try {
+      const v = JSON.parse(this.getSetting('overlayPosition') ?? 'null') as { x: number; y: number } | null
+      return v && Number.isFinite(v.x) && Number.isFinite(v.y) ? { x: Math.round(v.x), y: Math.round(v.y) } : null
+    } catch {
+      return null
+    }
+  }
+
+  setOverlayPosition(pos: { x: number; y: number }): void {
+    this.setSetting('overlayPosition', JSON.stringify({ x: Math.round(pos.x), y: Math.round(pos.y) }))
   }
 
   // ── Economy ───────────────────────────────────────────────────────────────

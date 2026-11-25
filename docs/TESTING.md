@@ -63,7 +63,8 @@ The engine ships inside the app, so engine updates reach players through app rel
 | Settings, build, strategies, session kept after restart | — | service restart | — |
 | Display formats | misc | — | ✓ |
 | Tabs, navigation, shortcut from another tab shows a notice | — | — | ✓ |
-| Interface language (English / French), settings panel | i18n | — | ✓ (switch to French and back) |
+| Interface language (English / French), settings panel | i18n, settings | — | ✓ (switch to French and back) |
+| In-game overlay: map info, verdict pop-up (also when hidden, gone after 15 s), never focused, unlock / move / lock, off = no window | settings | — | ✓ |
 | Windows installer, packaged engine | — | Windows CI | Windows CI |
 
 ## Not covered automatically (needs the real game)
@@ -71,6 +72,7 @@ The engine ships inside the app, so engine updates reach players through app rel
 - Real PoE 2 Client.txt format (patterns written from PoE 1 + docs; to check on a real log)
 - Ctrl+C text copied by the PoE 2 client (format assumed from PoB's parser)
 - Map completion / boss kill lines, pinnacle arena area ids
+- The overlay drawn over the real game on Windows (Windowed / Windowed Fullscreen), and the show/hide shortcut in game
 
 ## Network budget (poe.ninja)
 
@@ -180,3 +182,17 @@ bow the skill deals no damage and no support changes anything); e2e (card, clear
 - English is the default language; French is chosen in Settings (`POE2_LANG` only forces the default, for tests).
 - The e2e test runs in English (`POE2_LANG=en`) and checks the switch to French and back. Dates and numbers
   follow the system locale.
+
+## In-game overlay
+
+- A second window (`src/main/overlay.ts`) loads the same page with `#overlay` (`src/renderer/src/Overlay.tsx`).
+  It is transparent, always on top (`screen-saver` level), never focusable while locked, and lets the mouse
+  through (`setIgnoreMouseEvents`). It cannot be drawn over a game in exclusive fullscreen: the game must be in
+  Windowed or Windowed Fullscreen.
+- The page reports its size; nothing to show (hidden, no recent comparison) = the window hides. An item
+  comparison pops up for 15 s even when the overlay is hidden. `backgroundThrottling: false`: the window is
+  never focused, and Chromium would otherwise slow its timers (map clock, pop-up expiry).
+- Settings: on/off, show/hide shortcut (default Ctrl+Shift+O), "Move the overlay" (unlocked: draggable,
+  Lock button on the overlay). Position kept; reset if it is off every screen.
+- Not covered automatically: drawing over the real game on Windows (needs the game) — check it by hand.
+

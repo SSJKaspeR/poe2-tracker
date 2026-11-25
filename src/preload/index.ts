@@ -44,6 +44,9 @@ const api: TrackerApi = {
   setLanguage: (lang) => ipcRenderer.invoke('settings:language', lang),
   readClipboardOnce: () => ipcRenderer.invoke('clipboard:read-once'),
   setCompareHotkey: (accelerator) => ipcRenderer.invoke('hotkey:set', accelerator),
+  setOverlay: (change) => ipcRenderer.invoke('overlay:set', change),
+  setOverlayHotkey: (accelerator) => ipcRenderer.invoke('overlay:hotkey', accelerator),
+  overlayResize: (width, height) => ipcRenderer.send('overlay:resize', width, height),
   onHotkeyMiss: (listener) => subscribe<'not-item' | 'not-gear'>('hotkey:miss', listener),
   onItemCompared: (listener) => subscribe<Result<ItemComparisonDTO>>('item:compared', listener),
 
