@@ -32,7 +32,7 @@ Free, open-source, local-first desktop tracker for **Path of Exile 2**.
 | Trade upgrade search: PoB ranks the stats that help your build most for a slot; force / exclude stats, min values, max price; preview of the gain; opens a pre-filled search on the official trade site (no trade API calls) | ✅ |
 | Gear check: empty rune sockets, sockets still possible, open modifiers, missing quality, outdated bases, low item level | ✅ |
 | Best next upgrade, trade search for rares, AI explanations | 🚧 |
-| Interface in English or French (Settings; follows the system language by default) | ✅ |
+| Interface in English (default) or French (Settings) | ✅ |
 | Settings: language, automatic updates on/off, item comparison shortcut | ✅ |
 | Windows installer (built and tested on Windows by GitHub Actions) | ✅ first version |
 

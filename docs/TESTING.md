@@ -177,5 +177,6 @@ bow the skill deals no damage and no support changes anything); e2e (card, clear
   version **and** language; screens reload them when the language changes.
 - Game data (item mods, item and gem names, PoB stat lines) stays in English, as in Path of Building and on
   the trade site; so do currency names (Exalted Orb, Artificer's Orb…).
+- English is the default language; French is chosen in Settings (`POE2_LANG` only forces the default, for tests).
 - The e2e test runs in English (`POE2_LANG=en`) and checks the switch to French and back. Dates and numbers
   follow the system locale.

@@ -213,7 +213,8 @@ app.whenReady().then(async () => {
     dbPath: join(app.getPath('userData'), 'poe2-tracker.db'),
     pob: pobOptions(),
     // POE2_FILTER_DIR: tests and unusual installs.
-    locale: process.env.POE2_LANG ?? app.getLocale(),
+    // English by default; the player switches in Settings (POE2_LANG=fr forces the default, for tests).
+    locale: process.env.POE2_LANG,
     filterDirs: process.env.POE2_FILTER_DIR
       ? [process.env.POE2_FILTER_DIR]
       : poe2DocumentsDirs(app.getPath('documents'), app.getPath('home')),

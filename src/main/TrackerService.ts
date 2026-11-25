@@ -109,7 +109,7 @@ export class TrackerService extends EventEmitter {
     filterDirs?: string[]
     /** Downloads a build code from a sharing site (faked in tests). */
     fetchText?: FetchText
-    /** System locale ("fr-FR"): default language until the player picks one. */
+    /** Default language until the player picks one ("fr", "en-US"…); English when unset. */
     locale?: string
   }) {
     super()
