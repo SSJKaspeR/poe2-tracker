@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { BuildSnapshotDTO, BuildVersionDTO, GearCheckDTO, StatMap } from '@shared/ipc'
 import { Card } from '../components/Card'
+import { ItemSheets, RuneAdvice, UpgradePriorities } from '../components/GearAdvisor'
 import { GuideCompare } from '../components/GuideCompare'
 import { TradeUpgrade } from '../components/TradeUpgrade'
-import { formatDuration, formatStat, isImprovement, statLabel } from '../format'
+import { STAT_HELP, formatDuration, formatStat, isImprovement, statLabel } from '../format'
 import { useMoney, useTracker } from '../store'
 
 const GROUPS: { title: string; keys: string[] }[] = [
@@ -83,7 +84,16 @@ export function BuildPage() {
           {gear && <GearSummary gear={gear} />}
         </Card>
 
-        <TradeUpgrade slot={tradeSlot} slots={(snapshot?.items ?? []).map((i) => i.slot)} onSlot={setTradeSlot} />
+        <UpgradePriorities
+          onTrade={(slot) => {
+            setTradeSlot(slot)
+            document.getElementById('trade-upgrade')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }}
+        />
+
+        <div id="trade-upgrade">
+          <TradeUpgrade slot={tradeSlot} slots={(snapshot?.items ?? []).map((i) => i.slot)} onSlot={setTradeSlot} />
+        </div>
 
         <GuideCompare />
 
@@ -97,7 +107,7 @@ export function BuildPage() {
                   <dl className="space-y-1 text-sm">
                     {keys.map((k) => (
                       <div key={k} className="flex justify-between">
-                        <dt className="text-stone-500">{statLabel(k)}</dt>
+                        <dt className={`text-stone-500 ${STAT_HELP[k] ? "cursor-help underline decoration-dotted decoration-stone-700 underline-offset-2" : ""}`} title={STAT_HELP[k]}>{statLabel(k)}</dt>
                         <dd className={`tabular-nums ${resTone(k, snapshot.stats[k]!)}`}>{formatStat(k, snapshot.stats[k]!)}</dd>
                       </div>
                     ))}
@@ -152,6 +162,8 @@ export function BuildPage() {
             <p className="text-sm text-stone-500">No item in the imported build.</p>
           )}
         </Card>
+        <RuneAdvice />
+        <ItemSheets />
         <VersionTimeline versions={versions} />
       </div>
     </div>

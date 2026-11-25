@@ -144,6 +144,7 @@ try {
   await pressCompareHotkey()
   await win.locator('section', { hasText: 'Compare an item' }).getByText('replaces your').waitFor({ timeout: 15_000 })
   const compare = await win.locator('section', { hasText: 'Compare an item' }).innerText()
+  if (!(await win.getByRole('status', { name: 'Comparison verdict' }).first().isVisible())) fail('no comparison verdict')
   if (!/Fire res[\s\S]*-50%[\s\S]*-10%/.test(compare)) fail(`compare output: ${compare}`)
   await win.screenshot({ path: join(SHOTS, 'screenshot.png') })
 
@@ -192,6 +193,19 @@ try {
   await equipment.getByText(/more sockets possible/).waitFor({ timeout: 5_000 })
   await win.getByText(/Gear check: .*easy win/).waitFor({ timeout: 5_000 })
   await win.screenshot({ path: join(SHOTS, 'screenshot-build.png') })
+
+  step('Build tab: what to upgrade first, and each item line by line')
+  const prio = win.locator('section', { hasText: 'What to upgrade first' })
+  await prio.getByRole('button', { name: 'Analyse my gear' }).click()
+  await prio.getByRole('list', { name: 'Upgrade priorities' }).waitFor({ timeout: 60_000 })
+  const prioText = await prio.innerText()
+  if (!/#1/.test(prioText) || !/A good rare here would give/.test(prioText)) fail(`priorities: ${prioText}`)
+  const sheets = win.locator('section', { hasText: 'Your items, line by line' })
+  await sheets.getByLabel('Item to inspect').selectOption('Body Armour')
+  await sheets.getByText('+90 to maximum Life').waitFor({ timeout: 10_000 })
+  if (!/Gives you .*survivability/.test(await sheets.innerText())) fail(`item sheet: ${await sheets.innerText()}`)
+  await prio.scrollIntoViewIfNeeded()
+  await win.screenshot({ path: join(SHOTS, 'screenshot-gear-advice.png') })
 
   step('Build tab: find an upgrade on trade')
   await app.evaluate(({ shell }) => {

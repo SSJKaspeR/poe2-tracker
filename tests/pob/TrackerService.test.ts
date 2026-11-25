@@ -394,6 +394,41 @@ describe.skipIf(!paths)('TrackerService (whole app logic, real engine)', () => {
   })
 })
 
+describe.skipIf(!paths)('TrackerService gear advice', () => {
+  it('item sheets, runes for empty sockets, upgrade priorities (cached), comparison verdict', async () => {
+    const svc = await startService(folder())
+    unwrap(await svc.importBuild(fx('build-guide.pobcode'), { newBuild: false }))
+
+    const sheets = unwrap(await svc.itemSheets())
+    const body = sheets.find((x) => x.slot === 'Body Armour')!
+    expect(body.lines.find((l) => l.text === '+120 to maximum Life')?.effects[0]).toMatch(/survivability/)
+    expect(body.lines.find((l) => l.text === '+40% to Fire Resistance')?.effects[0]).toMatch(/^Fire resistance \+40%/)
+
+    const prio = unwrap(await svc.upgradePriorities())
+    expect(prio.length).toBeGreaterThan(0)
+    expect(prio.map((p) => p.score)).toEqual([...prio.map((p) => p.score)].sort((a, b) => b - a))
+    for (const p of prio) for (const l of p.lookFor) expect(l).toMatch(/^[+\d]/)
+    const t = Date.now()
+    expect(unwrap(await svc.upgradePriorities())).toBe(prio) // same build version: cached
+    expect(Date.now() - t).toBeLessThan(50)
+
+    // No socket on the guide's gear: no rune advice. Equip an armour with 2 empty sockets.
+    expect(unwrap(await svc.runeAdvice())).toEqual([])
+    // Same order as the game's copy: sockets before the item level.
+    unwrap(await svc.equipItem(ITEM.replace('Iron Cuirass\n--------', 'Iron Cuirass\n--------\nSockets: S S\n--------')))
+    const runes = unwrap(await svc.runeAdvice())
+    expect(runes).toEqual([expect.objectContaining({ slot: 'Body Armour', empty: 2 })])
+    expect(runes[0]!.options.length).toBeGreaterThan(0)
+    expect(runes[0]!.options[0]!.impact.length).toBeGreaterThan(0)
+
+    // The same armour, identical: nothing to say. A weaker copy: a downgrade, explained.
+    expect(unwrap(await svc.compareItem(ITEM)).verdict).toEqual({ tone: 'same', text: 'No real difference for your build.' })
+    const worse = unwrap(await svc.compareItem(ITEM.replace('+90 to maximum Life', '+10 to maximum Life')))
+    expect(worse.verdict).toMatchObject({ tone: 'worse', text: expect.stringMatching(/^Downgrade: .*survivability/) })
+    expect(worse.impact?.length).toBeGreaterThan(0)
+  })
+})
+
 describe.skipIf(!paths)('TrackerService loot filter', () => {
   it("finds the player's filter and lists priced items it hides", async () => {
     const f = folder()

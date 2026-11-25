@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { BuildSnapshotDTO, ItemComparisonDTO } from '@shared/ipc'
 import { HOTKEY_CHOICES } from '@shared/hotkeys'
-import { STAT_LABELS, formatStat, isImprovement } from '../format'
+import type { ItemVerdict } from '@shared/impact'
+import { STAT_HELP, STAT_LABELS, formatStat, isImprovement } from '../format'
 import { useTracker } from '../store'
 import { Button, Card } from './Card'
 
@@ -105,7 +106,7 @@ export function BuildPanel() {
             <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
               {KEY_STATS.filter((k) => snapshot.stats[k] !== undefined).map((k) => (
                 <div key={k} className="flex justify-between">
-                  <dt className="text-stone-500">{STAT_LABELS[k] ?? k}</dt>
+                  <dt className={`text-stone-500 ${STAT_HELP[k] ? "cursor-help underline decoration-dotted decoration-stone-700 underline-offset-2" : ""}`} title={STAT_HELP[k]}>{STAT_LABELS[k] ?? k}</dt>
                   <dd className="tabular-nums">{formatStat(k, snapshot.stats[k]!)}</dd>
                 </div>
               ))}
@@ -256,13 +257,16 @@ export function ItemComparePanel() {
           <div className="text-sm text-stone-400">
             {result.item.name} → replaces your <span className="text-stone-200">{result.slot}</span>
           </div>
+          {result.verdict && <VerdictBox verdict={result.verdict} />}
           {changes.length === 0 ? (
             <p className="mt-2 text-sm text-stone-500">No change to your key stats.</p>
           ) : (
             <ul className="mt-2 space-y-1 text-sm">
               {changes.map(([k, c]) => (
                 <li key={k} className="flex justify-between">
-                  <span className="text-stone-400">{STAT_LABELS[k]}</span>
+                  <span className="text-stone-400" title={STAT_HELP[k]}>
+                    {STAT_LABELS[k]}
+                  </span>
                   <span className="tabular-nums">
                     <span className="text-stone-500">{formatStat(k, c.before)} → </span>
                     <span className={isImprovement(k, c.delta) ? 'text-emerald-400' : 'text-red-400'}>{formatStat(k, c.after)}</span>
@@ -284,3 +288,20 @@ export function ItemComparePanel() {
     </Card>
   )
 }
+
+const VERDICT_STYLE: Record<ItemVerdict['tone'], string> = {
+  better: 'border-emerald-700 bg-emerald-950/40 text-emerald-200',
+  worse: 'border-red-800 bg-red-950/40 text-red-200',
+  mixed: 'border-amber-700 bg-amber-950/30 text-amber-100',
+  same: 'border-stone-700 bg-stone-900 text-stone-300'
+}
+
+/** One plain sentence on the comparison: upgrade, downgrade, or a trade-off explained. */
+export function VerdictBox({ verdict }: { verdict: ItemVerdict }) {
+  return (
+    <p role="status" aria-label="Comparison verdict" className={`mt-2 rounded-md border px-3 py-2 text-sm ${VERDICT_STYLE[verdict.tone]}`}>
+      {verdict.text}
+    </p>
+  )
+}
+

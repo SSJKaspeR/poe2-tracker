@@ -225,6 +225,19 @@ export class PobBridge {
   }
 
   /** PoB's trade weights for upgrading the item in this slot. */
+  /**
+   * What each mod line of the equipped items brings (the item recalculated without it).
+   * `diff` goes from "without the line" to "with it": positive delta = the line helps.
+   */
+  modImpact(slot?: string): Promise<ModImpact> {
+    return this.request('mod_impact', slot ? { slot } : {}, 120_000)
+  }
+
+  /** Empty rune sockets and what each compatible rune / soul core would change. */
+  runeOptions(slot?: string): Promise<RuneOptions> {
+    return this.request('rune_options', slot ? { slot } : {}, 120_000)
+  }
+
   tradeWeights(slot: string): Promise<TradeWeights> {
     return this.request('trade_weights', { slot }, 120_000)
   }
@@ -233,9 +246,11 @@ export class PobBridge {
   tradePreview(
     slot: string,
     mods: { tradeId: string; text: string; value: number }[],
-    base?: string
+    base?: string,
+    /** Item lines added as they are (e.g. resistances kept from the current item). */
+    keepLines?: string[]
   ): Promise<{ slot: string; lines: string[]; before: StatMap; after: StatMap; diff: Record<string, StatChange> }> {
-    return this.request('trade_preview', { slot, mods, base })
+    return this.request('trade_preview', { slot, mods, base, keepLines })
   }
 
   compareNode(nodeId: number): Promise<{ node: { id: number; name: string } } & Omit<ItemComparison, 'slot' | 'item'>> {
@@ -290,3 +305,30 @@ export class PobBridge {
 function firstLine(s: string): string {
   return s.split('\n')[0] ?? s
 }
+
+export interface RuneOption {
+  name: string
+  kind: string
+  lines: string[]
+  level: number
+  /** Sockets it would fill (some runes are limited to one per item). */
+  count: number
+  diff: Record<string, { before: number; after: number; delta: number }>
+}
+
+export interface RuneOptions {
+  characterLevel: number
+  before: Record<string, number>
+  slots: { slot: string; item: string; sockets: number; empty: number; options: RuneOption[] }[]
+}
+
+export interface ModImpact {
+  before: Record<string, number>
+  items: {
+    slot: string
+    item: string
+    rarity: string
+    lines: { kind: 'implicit' | 'explicit'; text: string; crafted: boolean; diff: Record<string, { before: number; after: number; delta: number }> }[]
+  }[]
+}
+

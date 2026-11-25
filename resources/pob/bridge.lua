@@ -571,6 +571,10 @@ function commands.trade_preview(req)
 	for _, m in ipairs(req.mods or {}) do
 		lines[#lines + 1] = tradeLine(m.tradeId, m.text, m.value)
 	end
+	-- Lines kept as they are (e.g. the resistances of the current item).
+	for _, l in ipairs(req.keepLines or {}) do
+		lines[#lines + 1] = l
+	end
 	local item = newItem(table.concat(lines, "\n"))
 	if not item.base then error("unrecognised base " .. tostring(base)) end
 	local calcFunc, baseOutput = build.calcsTab:GetMiscCalculator()
@@ -578,6 +582,110 @@ function commands.trade_preview(req)
 	local before = pickStats(baseOutput)
 	local after = pickStats(newOutput)
 	return { slot = req.slot, lines = { unpack(lines, 5) }, before = before, after = after, diff = diff(before, after) }
+end
+
+-- Empty rune sockets of the equipped items, and what each compatible rune / soul core would
+-- change if socketed there (every empty socket filled, within the rune's limit).
+function commands.rune_options(req)
+	requireBuild()
+	local charLevel = build.characterLevel or 1
+	local calcFunc, baseOutput = build.calcsTab:GetMiscCalculator()
+	local before = pickStats(baseOutput)
+	local out = {}
+	for _, slot in ipairs(build.itemsTab.orderedSlots) do
+		if not slot.inactive and slot.selItemId and slot.selItemId ~= 0 and (not req.slot or req.slot == slot.slotName) then
+			local item = build.itemsTab.items[slot.selItemId]
+			local sockets = item and item.base and item.itemSocketCount or 0
+			local empty = {}
+			for i = 1, sockets do
+				local r = item.runes[i]
+				if not r or r == "None" or r == "" then empty[#empty + 1] = i end
+			end
+			if #empty > 0 then
+				local okRaw, raw = pcall(function() return item:BuildRaw() end)
+				local options = {}
+				for _, rune in ipairs(build.itemsTab:GetValidRunesForItem(item)) do
+					if rune.name ~= "None" and (rune.req or 0) <= charLevel then
+						local copy = newItem(okRaw and raw or item.raw)
+						if copy.base then
+							local filled = 0
+							for _, i in ipairs(empty) do
+								if not rune.limit or filled < rune.limit then
+									copy.runes[i] = rune.name
+									filled = filled + 1
+								end
+							end
+							copy:UpdateRunes()
+							copy:BuildModList()
+							local after = pickStats(calcFunc({ repSlotName = slot.slotName, repItem = copy }))
+							options[#options + 1] = {
+								name = rune.name,
+								kind = rune.type,
+								lines = rune.lines,
+								level = rune.req or 0,
+								count = filled,
+								diff = diff(before, after),
+							}
+						end
+					end
+				end
+				out[#out + 1] = { slot = slot.slotName, item = item.name, sockets = sockets, empty = #empty, options = options }
+			end
+		end
+	end
+	return { characterLevel = charLevel, before = before, slots = out }
+end
+
+-- What each mod line of the equipped items brings: the item is recalculated without the
+-- line (PoB skips disabled lines). Implicit and explicit lines; runes are covered elsewhere.
+function commands.mod_impact(req)
+	requireBuild()
+	local calcFunc, baseOutput = build.calcsTab:GetMiscCalculator()
+	local before = pickStats(baseOutput)
+	local out = {}
+	for _, slot in ipairs(build.itemsTab.orderedSlots) do
+		if not slot.inactive and slot.selItemId and slot.selItemId ~= 0 and (not req.slot or req.slot == slot.slotName) then
+			local item = build.itemsTab.items[slot.selItemId]
+			if item and item.base and not item.base.flask then
+				local okRaw, raw = pcall(function() return item:BuildRaw() end)
+				local lines = {}
+				for _, group in ipairs({ { "implicit", "implicitModLines" }, { "explicit", "explicitModLines" } }) do
+					local kind, field = group[1], group[2]
+					for i, ml in ipairs(item[field] or {}) do
+						if not ml.disabled then
+							local text = resolvedLines({ ml })[1]
+							-- The item text without this line (BuildRaw may prefix it with {tags}).
+							local rawLines, removed = {}, false
+							for rl in ((okRaw and raw or item.raw) .. "\n"):gmatch("(.-)\r?\n") do
+								if not removed and (rl == ml.line or rl:sub(-#ml.line - 1) == "}" .. ml.line) then
+									removed = true
+								else
+									rawLines[#rawLines + 1] = rl
+								end
+							end
+							if removed and kind == "implicit" then
+								-- Keep the "Implicits: N" count in step, or PoB reads the next line as an implicit.
+								for k, rl in ipairs(rawLines) do
+									local n = rl:match("^Implicits: (%d+)$")
+									if n then rawLines[k] = "Implicits: " .. math.max(0, tonumber(n) - 1) break end
+								end
+							end
+							if text and removed then
+								local copy = newItem(table.concat(rawLines, "\n"))
+								if copy.base then
+									copy:BuildModList()
+									local after = pickStats(calcFunc({ repSlotName = slot.slotName, repItem = copy }))
+									lines[#lines + 1] = { kind = kind, text = text, crafted = ml.crafted and true or false, diff = diff(after, before) }
+								end
+							end
+						end
+					end
+				end
+				out[#out + 1] = { slot = slot.slotName, item = item.name, rarity = item.rarity, lines = lines }
+			end
+		end
+	end
+	return { before = before, items = out }
 end
 
 -- Gain from allocating a single passive node (by node id).

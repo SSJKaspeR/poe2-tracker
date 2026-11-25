@@ -35,6 +35,38 @@ export const STAT_LABELS: Record<string, string> = {
   ChaosMaximumHitTaken: 'Max chaos hit'
 }
 
+/**
+ * One plain sentence per stat, shown on hover: what it is and why it matters.
+ * Numbers follow PoE 2 rules (resistance cap 75%).
+ */
+export const STAT_HELP: Record<string, string> = {
+  CombinedDPS: 'Damage per second of your main skill, hits and damage over time together, as calculated by Path of Building.',
+  TotalDPS: 'Damage per second from hits only.',
+  TotalDotDPS: 'Damage per second from damage over time (ignite, poison, bleed…).',
+  Life: 'When it reaches 0 you die. More life = more room for mistakes.',
+  EnergyShield: 'A shield on top of your life: it takes damage first and recharges when you stop being hit.',
+  Mana: 'Pays for your skills. Running out means you stop attacking or casting.',
+  Spirit: 'Reserved by persistent skills (auras, buffs, minions). Unused Spirit is a free slot for another one.',
+  Armour: 'Reduces physical hit damage, much better against many small hits than one big hit.',
+  Evasion: 'Chance to avoid enemy attacks entirely (not spells).',
+  TotalEHP:
+    'Effective HP: how much raw damage you can take before dying, counting life, energy shield, resistances and mitigation. The best single number for "how tanky am I".',
+  FireResist: 'Reduces fire damage. Capped at 75%: below that, fire hits get much more dangerous.',
+  ColdResist: 'Reduces cold damage. Capped at 75%: below that, cold hits get much more dangerous.',
+  LightningResist: 'Reduces lightning damage. Capped at 75%: below that, lightning hits get much more dangerous.',
+  ChaosResist: 'Reduces chaos damage. Harder to raise; aim for at least 0% in endgame.',
+  EffectiveMovementSpeedMod: 'How fast you move. Faster = shorter maps = more profit per hour.',
+  PhysicalMaximumHitTaken: 'The biggest physical hit you can survive from full life.',
+  FireMaximumHitTaken: 'The biggest fire hit you can survive from full life.',
+  ColdMaximumHitTaken: 'The biggest cold hit you can survive from full life.',
+  LightningMaximumHitTaken: 'The biggest lightning hit you can survive from full life.',
+  ChaosMaximumHitTaken: 'The biggest chaos hit you can survive from full life. The lowest of these is what one-shots you.',
+  CritChance: 'Chance for a hit to be a critical strike.',
+  CritMultiplier: 'Extra damage dealt by critical strikes.',
+  HitChance: 'Chance your attacks hit (accuracy against enemy evasion).',
+  SpiritUnreserved: 'Spirit left after your persistent skills: room for one more buff or minion.'
+}
+
 /** Extra labels used only on the Build tab (full stat sheet). */
 export const EXTRA_STAT_LABELS: Record<string, string> = {
   AverageHit: 'Average hit',

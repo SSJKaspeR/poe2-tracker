@@ -1,3 +1,5 @@
+import type { ImpactLine, ItemVerdict } from './impact'
+export type { ImpactLine, ItemVerdict } from './impact'
 // Types shared between the main process, the preload script and the renderer.
 // Dates cross the IPC boundary as ISO strings. Currency values are in Divine Orbs.
 
@@ -79,6 +81,10 @@ export interface ItemComparisonDTO {
   diff: Record<string, { before: number; after: number; delta: number }>
   /** Raw item text, so the UI can equip it. */
   itemText?: string
+  /** Plain-language verdict ("Upgrade: +12% damage…"), using the player's recent death rate. */
+  verdict?: ItemVerdict
+  /** Main effects, most important first. */
+  impact?: ImpactLine[]
 }
 
 export interface VersionPerformanceDTO {
@@ -329,6 +335,13 @@ export interface TrackerApi {
   addLoot(runId: string, item: { label: string; itemId?: string; quantity: number; manualValue?: number }): Promise<RunLinesDTO>
   removeLine(runId: string, kind: 'loot' | 'investment', lineId: number): Promise<RunLinesDTO>
   refreshPrices(): Promise<AppStatus>
+  /** Equipped items line by line, with what each line brings. */
+  getItemSheets(): Promise<Result<ItemSheetDTO[]>>
+  /** Best runes for empty sockets, with prices. */
+  getRuneAdvice(): Promise<Result<RuneAdviceDTO[]>>
+  /** Slots ranked by potential gain (a few seconds the first time per build version). */
+  getUpgradePriorities(): Promise<Result<UpgradePriorityDTO[]>>
+  onUpgradeProgress(listener: (p: { done: number; total: number }) => void): () => void
   /** Rule-based observations on maps, bosses, economy and build, most important first. */
   getVerdicts(): Promise<VerdictDTO[]>
   /** App updates (GitHub Releases). null in dev. */
@@ -395,5 +408,54 @@ export interface VerdictDTO {
   title: string
   detail: string
   tab: 'dashboard' | 'maps' | 'sessions' | 'build'
+}
+
+/** Best runes / soul cores for the empty sockets of one item. */
+export interface RuneAdviceDTO {
+  slot: string
+  item: string
+  empty: number
+  sockets: number
+  options: {
+    name: string
+    kind: string
+    lines: string[]
+    count: number
+    /** Total price in divine for `count` runes, null when unpriced. */
+    price: number | null
+    dps: number
+    ehp: number
+    score: number
+    impact: ImpactLine[]
+  }[]
+  /** Cheaper option giving ≥ 80% of the best gain. */
+  bestValue: string | null
+}
+
+/** One slot in the "what to upgrade first" list. */
+export interface UpgradePriorityDTO {
+  slot: string
+  item: string
+  /** Gain from a good, realistic rare with the most useful stats (%). */
+  dps: number
+  ehp: number
+  score: number
+  impact: ImpactLine[]
+  /** Stats to look for, most useful first, with good values. */
+  lookFor: string[]
+  /** Defences of the current item the good rare keeps (resistances, life, ES). */
+  kept: string[]
+  /** Affixes still free on the current item (an Exalted Orb can add one). */
+  freeAffixes: number
+}
+
+/** One equipped item, line by line: what each line brings to the build. */
+export interface ItemSheetDTO {
+  slot: string
+  item: string
+  rarity: string
+  lines: { kind: 'implicit' | 'explicit'; text: string; crafted: boolean; effects: string[]; score: number }[]
+  /** Explicit line to replace first, null if none stands out. */
+  weakest: number | null
 }
 

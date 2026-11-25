@@ -1,6 +1,7 @@
 import { checkClipboard, DEFAULT_HOTKEY, hotkeyLabel, type ClipboardCheck } from '../core/clipboard/compareHotkey'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import axios from 'axios'
+import { itemVerdict, summarizeImpact } from '../shared/impact'
 import { resolveBuildCode, type FetchText } from '../core/pob/buildSource'
 import { computeVerdicts, type VerdictBuild } from '../core/verdicts/verdicts'
 import { formatCurrency } from '../renderer/src/format'
@@ -8,6 +9,7 @@ import { guessActiveFilter, listFilters, poe2DocumentsDirs } from '../core/filte
 import { hiddenValuable, parseFilter, type ParsedFilter } from '../core/filter/LootFilter'
 import { EventEmitter } from 'node:events'
 import { checkGear } from '../core/build/gearCheck'
+import { goodItemMods, itemSheets, rankRuneOptions, rankSlots, defensiveLines, type SlotPreview } from '../core/build/gearAdvice'
 import { compareGear, impactScore, type DetailedItem } from '../core/build/targetCompare'
 import { compareSkills, compareTree, type SkillGroup, type TreeDetail } from '../core/build/treeGemsCompare'
 import { BuildRepository } from '../core/db/BuildRepository'
@@ -31,6 +33,9 @@ import type {
   GearCheckDTO,
   GuideComparisonDTO,
   LootFilterDTO,
+  RuneAdviceDTO,
+  ItemSheetDTO,
+  UpgradePriorityDTO,
   VerdictDTO,
   ItemComparisonDTO,
   PresetDTO,
@@ -79,6 +84,7 @@ export class TrackerService extends EventEmitter {
   private loadedGeneration = -1
   private readonly tradeWeightCache = new Map<string, TradeWeightsDTO>()
   private refreshing: Promise<void> | null = null
+  private priorityCache: { versionId: number; value: UpgradePriorityDTO[] } | null = null
   private stopped = false
   private readonly filterDirs: string[]
   private readonly logFn?: (msg: string) => void
@@ -302,7 +308,20 @@ export class TrackerService extends EventEmitter {
     if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
     await this.pobReady
     const res = await wrap(() => this.withPob(() => this.pob!.compareItem(itemText)))
-    return res.ok ? { ok: true, value: { ...res.value, itemText } } : res
+    if (!res.ok) return res
+    const impact = summarizeImpact(res.value.diff, res.value.before)
+    return {
+      ok: true,
+      value: { ...res.value, itemText, impact: impact.lines, verdict: itemVerdict(impact, this.recentDeathRate()) }
+    }
+  }
+
+  /** Share of maps with a death over the last 30 days (null below 8 maps: not enough to judge). */
+  recentDeathRate(): number | null {
+    const since = new Date(Date.now() - 30 * 24 * 3600_000)
+    const maps = this.runs.detailed({ since, limit: 300 }).filter((r) => r.endedAt && r.kind === 'map')
+    if (maps.length < 8) return null
+    return maps.filter((r) => r.deaths > 0).length / maps.length
   }
 
   /**
@@ -632,6 +651,81 @@ export class TrackerService extends EventEmitter {
   // ── Trade upgrade search ──────────────────────────────────────────────────
 
   /** PoB weights per stat for upgrading this slot (cached per build version and slot). */
+  // ── Gear advice ───────────────────────────────────────────────────────────
+
+  /** Every equipped item, line by line, with what each line brings to the build. */
+  async itemSheets(): Promise<Result<ItemSheetDTO[]>> {
+    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    if (!this.activeBuild()) return { ok: true, value: [] }
+    await this.pobReady
+    const res = await wrap(() => this.withPob(() => this.pob!.modImpact()))
+    return res.ok ? { ok: true, value: itemSheets(res.value) } : res
+  }
+
+  /** Best runes / soul cores for every empty socket of the equipped gear, with poe.ninja prices. */
+  async runeAdvice(): Promise<Result<RuneAdviceDTO[]>> {
+    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    if (!this.activeBuild()) return { ok: true, value: [] }
+    await this.pobReady
+    const res = await wrap(() => this.withPob(() => this.pob!.runeOptions()))
+    if (!res.ok) return res
+    return { ok: true, value: rankRuneOptions(res.value, (name) => this.priceBook.get(name)?.value ?? null) }
+  }
+
+  /**
+   * Which slot to upgrade first: for each equipped slot, PoB builds a good, realistic rare
+   * with the stats that help this build most (the trade search weights) and measures the gain.
+   * A few seconds per build version (cached). `onProgress` reports slots done / total.
+   */
+  async upgradePriorities(onProgress?: (done: number, total: number) => void): Promise<Result<UpgradePriorityDTO[]>> {
+    if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
+    const versionId = this.activeVersionId()
+    if (versionId === null) return { ok: true, value: [] }
+    if (this.priorityCache?.versionId === versionId) return { ok: true, value: this.priorityCache.value }
+    await this.pobReady
+    const audit = await wrap(() => this.withPob(() => this.pob!.auditItems()))
+    if (!audit.ok) return audit
+    const items = audit.value.items.filter((i) => !/^Flask|^Charm/.test(i.slot))
+    const details = await wrap(() => this.withPob(() => this.pob!.itemsDetail()))
+    const explicits = new Map(details.ok ? details.value.items.map((d) => [d.slot, d.explicits] as const) : [])
+    const previews: SlotPreview[] = []
+    const free = new Map<string, number>()
+    for (const it of items) free.set(it.slot, Math.max(0, it.affixLimit - it.explicitLines))
+    let done = 0
+    for (const it of items) {
+      onProgress?.(done, items.length)
+      const w = await this.tradeWeights(it.slot)
+      done++
+      if (!w.ok) continue
+      // A good realistic rare: your current defences (resistances, life, ES) + the most useful stats.
+      const keep = defensiveLines(explicits.get(it.slot) ?? [])
+      const mods = goodItemMods(w.value.weights, Math.max(2, 6 - keep.length), keep)
+      if (!mods.length) continue
+      const p = await wrap(() =>
+        this.withPob(() =>
+          this.pob!.tradePreview(
+            it.slot,
+            mods.map((m) => ({ tradeId: m.tradeId, text: m.text, value: m.typical })),
+            undefined,
+            keep
+          )
+        )
+      )
+      if (!p.ok) continue
+      const added = p.value.lines.filter((l) => !keep.includes(l))
+      previews.push({ slot: it.slot, item: it.name, mods: added, kept: keep, before: {}, diff: p.value.diff })
+    }
+    onProgress?.(items.length, items.length)
+    const value: UpgradePriorityDTO[] = rankSlots(previews).map((p) => ({
+      ...p,
+      freeAffixes: items.find((i) => i.slot === p.slot && !i.corrupted && !i.mirrored && (i.rarity === 'RARE' || i.rarity === 'MAGIC'))
+        ? (free.get(p.slot) ?? 0)
+        : 0
+    }))
+    if (this.activeVersionId() === versionId) this.priorityCache = { versionId, value }
+    return { ok: true, value }
+  }
+
   async tradeWeights(slot: string): Promise<Result<TradeWeightsDTO>> {
     if (!this.pob) return { ok: false, error: this.pobError ?? 'PoB unavailable' }
     if (!this.activeBuild()) return { ok: false, error: 'Import your build first' }

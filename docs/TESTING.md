@@ -121,3 +121,20 @@ AI, no network. `tests/unit/verdicts.test.ts` checks each rule and its minimum s
 | Build | elemental res < 75 %, chaos res < 0 (endgame), one max hit < 60 % of the others, movement speed < +10 % (endgame), ≥ 30 Spirit unused, easy gear fixes | an imported build |
 
 The smoke test checks them on the real engine; the e2e test checks the card and its link to the Build tab.
+
+## Gear advice (Build tab)
+
+All numbers come from Path of Building; `src/shared/impact.ts` turns a stat difference into plain sentences
+and one score (damage % + effective HP % + resistance fixes, the 75% cap weighs most).
+
+| Feature | How | Tests |
+|---|---|---|
+| Comparison verdict | `itemVerdict`: upgrade / downgrade / trade-off, never recommends losing a resistance cap; damage-for-defence weighed with the player's death rate (30 days, ≥ 8 maps) | `impact.test.ts`, service |
+| Runes & soul cores | bridge `rune_options`: every rune PoB allows on the item (`GetValidRunesForItem`, level ≤ character) in the empty sockets; ranked, priced (poe.ninja), "best value" = cheapest with ≥ 80% of the best gain | `gearAdvice.test.ts`, service (armour with 2 sockets) |
+| What to upgrade first | per slot: trade weights (PoB) → a good realistic rare = current defences (resistances, life, ES) + the most useful other stats at PoB's tested value, ≤ 6 lines → `trade_preview` gain; cached per build version | `gearAdvice.test.ts`, service, e2e |
+| Items line by line | bridge `mod_impact`: each implicit/explicit line removed from the item text, recalculated; weakest non-resistance line flagged when ≤ 25% of the best | `gearAdvice.test.ts`, service, e2e |
+| Glossary | `STAT_HELP` hover text on every stat label | — |
+
+Note: an item copied in game lists `Sockets:` before `Item Level:`; PoB reads a `Sockets:` line placed after it
+as a mod (and doubles the sockets on reload). Test items follow the game's order.
+

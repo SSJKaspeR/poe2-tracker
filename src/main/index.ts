@@ -84,6 +84,11 @@ function registerIpc(svc: TrackerService): void {
   ipcMain.handle('trade:preview', (_e, slot: string, mods) => svc.tradePreview(slot, mods))
   ipcMain.handle('runs:detailed', (_e, sinceDays: number | null) => svc.runsDetailed(sinceDays))
   ipcMain.handle('verdicts:get', () => svc.verdicts())
+  ipcMain.handle('gear:runes', () => svc.runeAdvice())
+  ipcMain.handle('gear:sheets', () => svc.itemSheets())
+  ipcMain.handle('gear:priorities', () =>
+    svc.upgradePriorities((done, total) => mainWindow?.webContents.send('gear:progress', { done, total }))
+  )
   ipcMain.handle('update:get', () => updater?.status ?? null)
   ipcMain.handle('update:install', () => updater?.installNow() ?? false)
   ipcMain.handle('update:check', async () => {
