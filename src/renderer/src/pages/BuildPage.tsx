@@ -3,6 +3,7 @@ import type { BuildSnapshotDTO, BuildVersionDTO, GearCheckDTO, StatMap } from '@
 import { Card } from '../components/Card'
 import { ItemSheets, RuneAdvice, UpgradePriorities } from '../components/GearAdvisor'
 import { Optimisations } from '../components/Optimisations'
+import { AiExplain } from '../components/AiExplain'
 import { GuideCompare } from '../components/GuideCompare'
 import { TradeUpgrade } from '../components/TradeUpgrade'
 import { formatDuration, formatStat, isImprovement, statHelp, statLabel } from '../format'
@@ -85,6 +86,9 @@ export function BuildPage() {
           </div>
           {snapshot && <Warnings stats={snapshot.stats} />}
           {gear && <GearSummary gear={gear} />}
+          <div className="mt-3">
+            <AiExplain topic={{ kind: 'build' }} label={t('Ask the AI coach: what to improve first?')} resetKey={versionId} />
+          </div>
         </Card>
 
         <UpgradePriorities

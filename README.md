@@ -33,6 +33,7 @@ Free, open-source, local-first desktop tracker for **Path of Exile 2**.
 | Gear check: empty rune sockets, sockets still possible, open modifiers, missing quality, outdated bases, low item level | ✅ |
 | Best next upgrade, trade search for rares, AI explanations | 🚧 |
 | In-game overlay: map name and timer, deaths, today's and the session's profit/hour, verdict of the item compared with the shortcut; clicks go through it; show/hide shortcut (Ctrl+Shift+O), movable (game in Windowed or Windowed Fullscreen) | ✅ |
+| Optional AI explanations (off by default): "what to improve first" coach and "Explain with AI" on item comparisons, with your own Claude or OpenAI key, or a free local model (Ollama). Only the numbers and the app's findings are sent, when you click; "See what is sent" shows them first | ✅ |
 | Interface in English (default) or French (Settings) | ✅ |
 | Settings: language, automatic updates on/off, item comparison shortcut | ✅ |
 | Windows installer (built and tested on Windows by GitHub Actions) | ✅ first version |
@@ -94,6 +95,14 @@ The app follows GGG's [third-party policy](https://www.pathofexile.com/developer
 - It never calls GGG's trade API or undocumented endpoints, and never reads or modifies game files or memory.
   Importing a character straight from your GGG account needs GGG's official API, which isn't accepting new
   applications yet: it will come when it is.
+
+## Privacy
+
+Everything stays on your computer. The app only goes online for prices (poe.ninja), a build link you paste,
+update checks (GitHub), and — only if you turn it on and click — the AI explanations. Those send the numbers
+Path of Building calculated and the app's findings to the AI you chose (never your account, files or game
+log); your API key is encrypted with your operating system and never leaves your computer except to that
+provider. With Ollama nothing leaves your computer at all.
 
 Not affiliated with or endorsed by Grinding Gear Games.
 

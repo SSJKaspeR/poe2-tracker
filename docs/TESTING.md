@@ -64,6 +64,7 @@ The engine ships inside the app, so engine updates reach players through app rel
 | Display formats | misc | — | ✓ |
 | Tabs, navigation, shortcut from another tab shows a notice | — | — | ✓ |
 | Interface language (English / French), settings panel | i18n, settings | — | ✓ (switch to French and back) |
+| AI explanations: providers (Claude Messages, OpenAI Responses, Ollama), errors, what is sent, key encrypted / kept in memory, off by default | ai, settings | — | ✓ (fake local Ollama: off by default, nothing sent before clicking, answer, no local paths sent) |
 | In-game overlay: map info, verdict pop-up (also when hidden, gone after 15 s), never focused, unlock / move / lock, off = no window | settings | — | ✓ |
 | Windows installer, packaged engine | — | Windows CI | Windows CI |
 
@@ -195,4 +196,16 @@ bow the skill deals no damage and no support changes anything); e2e (card, clear
 - Settings: on/off, show/hide shortcut (default Ctrl+Shift+O), "Move the overlay" (unlocked: draggable,
   Lock button on the overlay). Position kept; reset if it is off every screen.
 - Not covered automatically: drawing over the real game on Windows (needs the game) — check it by hand.
+
+## AI explanations (optional)
+
+- `src/core/ai/providers.ts`: Claude (Messages API), OpenAI (Responses API), Ollama (`/api/chat`, `/api/tags`).
+  Default models: `claude-haiku-5-5`, `gpt-6-luna`, `qwen3:4b` (editable in Settings). Errors become codes
+  (no key, refused key, rate limit, unreachable, model) explained to the player.
+- `src/core/ai/prompts.ts`: what is sent — key stats, the app's verdicts and gear check, the cached
+  optimisations, or one item comparison. No character or account name, no paths, no log lines. "See what is
+  sent" shows the exact text. The AI is told to use only these numbers and to answer in the interface language.
+- API keys: Electron `safeStorage` (DPAPI on Windows). Without real encryption (Linux plain-text backend) the
+  key is kept in memory until the app closes, never written.
+- The e2e test runs a fake Ollama server (`POE2_OLLAMA_URL`); no real AI service is ever called by the tests.
 

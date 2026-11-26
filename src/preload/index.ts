@@ -47,6 +47,10 @@ const api: TrackerApi = {
   setOverlay: (change) => ipcRenderer.invoke('overlay:set', change),
   setOverlayHotkey: (accelerator) => ipcRenderer.invoke('overlay:hotkey', accelerator),
   overlayResize: (width, height) => ipcRenderer.send('overlay:resize', width, height),
+  setAi: (change) => ipcRenderer.invoke('ai:set', change),
+  ollamaModels: () => ipcRenderer.invoke('ai:ollama-models'),
+  aiPreview: (topic) => ipcRenderer.invoke('ai:preview', topic),
+  askAi: (topic) => ipcRenderer.invoke('ai:ask', topic),
   onHotkeyMiss: (listener) => subscribe<'not-item' | 'not-gear'>('hotkey:miss', listener),
   onItemCompared: (listener) => subscribe<Result<ItemComparisonDTO>>('item:compared', listener),
 

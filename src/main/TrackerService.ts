@@ -1,5 +1,7 @@
 import { checkClipboard, DEFAULT_HOTKEY, hotkeyLabel, type ClipboardCheck } from '../core/clipboard/compareHotkey'
 import { DEFAULT_OVERLAY_HOTKEY, overlayHotkeyLabel } from '../shared/hotkeys'
+import { AI_PROVIDERS, AiError, askAi, DEFAULT_AI_MODELS, DEFAULT_OLLAMA_URL, listOllamaModels, type AiProvider, type Http } from '../core/ai/providers'
+import { buildCoachPrompt, comparisonPrompt } from '../core/ai/prompts'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import axios from 'axios'
 import { isLang, langFromLocale, translator, type Lang, type Translator } from '../shared/i18n'
@@ -30,6 +32,8 @@ import { RunTracker, type Run } from '../core/runs/RunTracker'
 import { SessionRepository, type SessionSummary } from '../core/sessions/SessionRepository'
 import type {
   ActiveBuildDTO,
+  AiAnswerDTO,
+  AiTopic,
   AppStatus,
   BuildSnapshotDTO,
   BuildVersionDTO,
@@ -64,6 +68,12 @@ const PRICE_REFRESH_MS = 60 * 60 * 1000
  * Wires the core modules together. No Electron imports here, so it stays testable.
  * Emits 'status' (AppStatus) and 'item-compared' (Result<ItemComparisonDTO>).
  */
+/** Encrypts secrets on this computer (Electron safeStorage); null when it can't. */
+export interface Secrets {
+  encrypt(plain: string): string | null
+  decrypt(stored: string): string | null
+}
+
 export class TrackerService extends EventEmitter {
   private readonly database: AppDatabase
   private readonly runs: RunRepository
@@ -97,6 +107,11 @@ export class TrackerService extends EventEmitter {
   private readonly systemLang: Lang
   /** Set by the main process when the hotkey can't be registered (taken by another app). */
   hotkeyError: string | null = null
+  private readonly secrets: Secrets | null
+  private readonly http: Http
+  private readonly ollamaUrl: string
+  /** API keys kept only until the app closes (no secure storage available). */
+  private readonly sessionKeys = new Map<AiProvider, string>()
   overlayHotkeyError: string | null = null
   /** Overlay unlocked to be moved (never kept after a restart). */
   private overlayUnlocked = false
@@ -115,9 +130,18 @@ export class TrackerService extends EventEmitter {
     fetchText?: FetchText
     /** Default language until the player picks one ("fr", "en-US"…); English when unset. */
     locale?: string
+    /** Encrypts the AI API key on disk (Electron safeStorage); without it the key is kept in memory only. */
+    secrets?: Secrets | null
+    /** HTTP for the AI providers (faked in tests). */
+    http?: Http
+    /** Local Ollama server. */
+    ollamaUrl?: string
   }) {
     super()
     this.systemLang = langFromLocale(opts.locale)
+    this.secrets = opts.secrets ?? null
+    this.http = opts.http ?? ((url, init) => fetch(url, init))
+    this.ollamaUrl = opts.ollamaUrl ?? DEFAULT_OLLAMA_URL
     const ua = opts.userAgent ?? 'PoE2Tracker (+https://github.com/SSJKaspeR/poe2-tracker)'
     this.fetchText =
       opts.fetchText ??
@@ -283,6 +307,7 @@ export class TrackerService extends EventEmitter {
         locked: !this.overlayUnlocked,
         hotkey: { accelerator: this.getOverlayHotkey(), label: overlayHotkeyLabel(this.getOverlayHotkey()), error: this.overlayHotkeyError }
       },
+      ai: this.aiState(),
       session: this.activeSessionSummary()
     }
   }
@@ -904,6 +929,115 @@ export class TrackerService extends EventEmitter {
   setCompareHotkey(accelerator: string | null): void {
     this.setSetting('compareHotkey', accelerator ?? '')
     this.emitStatus()
+  }
+
+  // ── AI explanations (optional) ────────────────────────────────────────────
+
+  private aiProvider(): AiProvider | null {
+    const v = this.getSetting('aiProvider')
+    return v && (AI_PROVIDERS as string[]).includes(v) ? (v as AiProvider) : null
+  }
+
+  private aiModel(p: AiProvider): string {
+    return this.getSetting(`aiModel.${p}`) || DEFAULT_AI_MODELS[p]
+  }
+
+  /** The API key of a provider, null when none (or it can't be decrypted any more). */
+  private aiKey(p: AiProvider): string | null {
+    const mem = this.sessionKeys.get(p)
+    if (mem) return mem
+    const stored = this.getSetting(`aiKey.${p}`)
+    if (!stored || !this.secrets) return null
+    return this.secrets.decrypt(stored)
+  }
+
+  private aiState(): AppStatus['ai'] {
+    const p = this.aiProvider()
+    if (!p) return { provider: null, model: null, key: null }
+    const key = p === 'ollama' ? null : this.sessionKeys.has(p) ? 'session' : this.aiKey(p) ? 'saved' : null
+    return { provider: p, model: this.aiModel(p), key }
+  }
+
+  /** provider null = off; apiKey '' or null = forget the key of the current provider. */
+  setAi(change: { provider?: AiProvider | null; model?: string; apiKey?: string | null }): void {
+    if (change.provider !== undefined) this.setSetting('aiProvider', change.provider ?? '')
+    const p = this.aiProvider()
+    if (p && change.model !== undefined) this.setSetting(`aiModel.${p}`, change.model.trim())
+    if (p && p !== 'ollama' && change.apiKey !== undefined) {
+      const key = change.apiKey?.trim() ?? ''
+      this.sessionKeys.delete(p)
+      this.setSetting(`aiKey.${p}`, '')
+      if (key) {
+        const enc = this.secrets?.encrypt(key) ?? null
+        if (enc) this.setSetting(`aiKey.${p}`, enc)
+        else this.sessionKeys.set(p, key)
+      }
+    }
+    this.emitStatus()
+  }
+
+  async ollamaModels(): Promise<Result<string[]>> {
+    try {
+      return { ok: true, value: await listOllamaModels(this.http, this.ollamaUrl) }
+    } catch (err) {
+      return { ok: false, error: this.aiErrorMessage(err) }
+    }
+  }
+
+  /** Exactly what would be sent (nothing is sent). */
+  async aiPreview(topic: AiTopic): Promise<Result<{ system: string; user: string }>> {
+    if (topic.kind === 'comparison') return { ok: true, value: comparisonPrompt(this.getLanguage(), topic.comparison) }
+    const snap = await this.buildSnapshot()
+    if (!snap.ok) return snap
+    if (!snap.value) return { ok: false, error: this.t('Import your build first') }
+    const gear = await this.gearCheck()
+    const prompt = buildCoachPrompt(this.getLanguage(), {
+      snapshot: snap.value,
+      verdicts: await this.verdicts(),
+      gear: gear.ok ? gear.value : [],
+      optimisations: this.cached(this.optimisationCache)
+    })
+    return { ok: true, value: { system: prompt.system, user: prompt.user } }
+  }
+
+  async askAi(topic: AiTopic): Promise<Result<AiAnswerDTO>> {
+    const p = this.aiProvider()
+    if (!p) return { ok: false, error: this.t('AI explanations are off: turn them on in Settings.') }
+    const prompt = await this.aiPreview(topic)
+    if (!prompt.ok) return prompt
+    const model = this.aiModel(p)
+    try {
+      const answer = await askAi(
+        { provider: p, model, apiKey: this.aiKey(p), ollamaUrl: this.ollamaUrl },
+        { ...prompt.value, maxTokens: topic.kind === 'comparison' ? 400 : 700 },
+        this.http
+      )
+      return { ok: true, value: { answer, provider: p, model } }
+    } catch (err) {
+      this.logFn?.(`AI (${p}, ${model}) failed: ${err instanceof Error ? err.message : String(err)}`)
+      return { ok: false, error: this.aiErrorMessage(err) }
+    }
+  }
+
+  private aiErrorMessage(err: unknown): string {
+    const t = this.t
+    if (!(err instanceof AiError)) return t('The AI did not answer: {error}', { error: err instanceof Error ? err.message : String(err) })
+    switch (err.code) {
+      case 'no-key':
+        return t('No API key: add yours in Settings.')
+      case 'bad-key':
+        return t('Your API key was refused: check it in Settings.')
+      case 'rate-limit':
+        return t('Too many requests or no credit left on your AI account: try again later.')
+      case 'unreachable':
+        return this.aiProvider() === 'ollama'
+          ? t('Ollama is not running on this computer: start it, then try again.')
+          : t('The AI service could not be reached: check your connection.')
+      case 'model':
+        return t('Model not found: check its name in Settings ({error}).', { error: err.message })
+      default:
+        return t('The AI did not answer: {error}', { error: err.message })
+    }
   }
 
   // ── Overlay ───────────────────────────────────────────────────────────────

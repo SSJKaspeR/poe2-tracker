@@ -1,5 +1,32 @@
-import type { AppStatus } from '../shared/ipc'
-import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, shell } from 'electron'
+import type { AiProviderId, AiTopic, AppStatus } from '../shared/ipc'
+import type { Secrets } from './TrackerService'
+
+/**
+ * AI API keys are encrypted with the operating system (Windows: DPAPI, macOS: Keychain).
+ * Where only Electron's plain-text fallback exists (some Linux desktops), keys are not written
+ * to disk at all: they are kept until the app closes.
+ */
+function osSecrets(): Secrets | null {
+  if (!safeStorage.isEncryptionAvailable()) return null
+  if (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') return null
+  return {
+    encrypt: (plain) => {
+      try {
+        return safeStorage.encryptString(plain).toString('base64')
+      } catch {
+        return null
+      }
+    },
+    decrypt: (stored) => {
+      try {
+        return safeStorage.decryptString(Buffer.from(stored, 'base64'))
+      } catch {
+        return null
+      }
+    }
+  }
+}
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, safeStorage, shell } from 'electron'
 import { join, resolve } from 'node:path'
 import { poe2DocumentsDirs } from '../core/filter/findLootFilter'
 import { Updater } from './updater'
@@ -173,6 +200,13 @@ function registerIpc(svc: TrackerService): void {
     syncCompareHotkey(svc)
     return svc.status()
   })
+  ipcMain.handle('ai:set', (_e, change: { provider?: AiProviderId | null; model?: string; apiKey?: string | null }) => {
+    svc.setAi(change)
+    return svc.status()
+  })
+  ipcMain.handle('ai:ollama-models', () => svc.ollamaModels())
+  ipcMain.handle('ai:preview', (_e, topic: AiTopic) => svc.aiPreview(topic))
+  ipcMain.handle('ai:ask', (_e, topic: AiTopic) => svc.askAi(topic))
   ipcMain.handle('overlay:set', (_e, change: { enabled?: boolean; visible?: boolean; locked?: boolean }) => {
     svc.setOverlay(change)
     return svc.status()
@@ -267,6 +301,9 @@ app.whenReady().then(async () => {
     // POE2_FILTER_DIR: tests and unusual installs.
     // English by default; the player switches in Settings (POE2_LANG=fr forces the default, for tests).
     locale: process.env.POE2_LANG,
+    secrets: osSecrets(),
+    // POE2_OLLAMA_URL: tests, or Ollama on another port / machine.
+    ollamaUrl: process.env.POE2_OLLAMA_URL,
     filterDirs: process.env.POE2_FILTER_DIR
       ? [process.env.POE2_FILTER_DIR]
       : poe2DocumentsDirs(app.getPath('documents'), app.getPath('home')),

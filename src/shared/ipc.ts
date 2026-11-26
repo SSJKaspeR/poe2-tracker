@@ -68,7 +68,29 @@ export interface AppStatus {
   compareHotkey: { accelerator: string | null; label: string | null; error: string | null }
   /** Small always-on-top window over the game (needs the game in windowed or windowed fullscreen). */
   overlay: OverlayStateDTO
+  /** Optional AI explanations (off by default). */
+  ai: AiStateDTO
   session: SessionSummaryDTO | null
+}
+
+export type AiProviderId = 'anthropic' | 'openai' | 'ollama'
+
+/** Build coach, or the item comparison being shown. */
+export type AiTopic = { kind: 'build' } | { kind: 'comparison'; comparison: ItemComparisonDTO }
+
+export interface AiStateDTO {
+  /** null = off. */
+  provider: AiProviderId | null
+  /** Model used for the chosen provider. */
+  model: string | null
+  /** Where the API key is kept: encrypted on this computer, only until the app closes, or none. */
+  key: 'saved' | 'session' | null
+}
+
+export interface AiAnswerDTO {
+  answer: string
+  provider: AiProviderId
+  model: string
 }
 
 export interface OverlayStateDTO {
@@ -341,6 +363,11 @@ export interface TrackerApi {
   setOverlayHotkey(accelerator: string | null): Promise<AppStatus>
   /** Overlay window only: size of its content, so the window fits it. */
   overlayResize(width: number, height: number): void
+  setAi(change: { provider?: AiProviderId | null; model?: string; apiKey?: string | null }): Promise<AppStatus>
+  ollamaModels(): Promise<Result<string[]>>
+  /** Exactly what would be sent to the AI (nothing is sent). */
+  aiPreview(topic: AiTopic): Promise<Result<{ system: string; user: string }>>
+  askAi(topic: AiTopic): Promise<Result<AiAnswerDTO>>
   /** Hotkey pressed but the clipboard held no equipment. */
   onHotkeyMiss(listener: (reason: 'not-item' | 'not-gear') => void): () => void
   onItemCompared(listener: (r: Result<ItemComparisonDTO>) => void): () => void

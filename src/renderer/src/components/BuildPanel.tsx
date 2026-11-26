@@ -4,6 +4,7 @@ import { HOTKEY_CHOICES } from '@shared/hotkeys'
 import type { ItemVerdict } from '@shared/impact'
 import { STAT_LABELS, formatStat, isImprovement, statHelp, statLabel } from '../format'
 import { useT, useTracker } from '../store'
+import { AiExplain } from './AiExplain'
 import { Button, Card } from './Card'
 
 const KEY_STATS = ['CombinedDPS', 'Life', 'EnergyShield', 'Spirit', 'TotalEHP', 'FireResist', 'ColdResist', 'LightningResist', 'ChaosResist']
@@ -259,6 +260,9 @@ export function ItemComparePanel() {
             {result.item.name} → {t('replaces your')} <span className="text-stone-200">{result.slot}</span>
           </div>
           {result.verdict && <VerdictBox verdict={result.verdict} />}
+          <div className="mt-2">
+            <AiExplain topic={{ kind: 'comparison', comparison: result }} label={t('Explain with AI')} resetKey={result} />
+          </div>
           {changes.length === 0 ? (
             <p className="mt-2 text-sm text-stone-500">{t('No change to your key stats.')}</p>
           ) : (

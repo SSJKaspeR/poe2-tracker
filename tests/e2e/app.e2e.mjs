@@ -9,6 +9,7 @@
 import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { createServer } from 'node:http'
 import { _electron as electron } from 'playwright-core'
 
 const ROOT = resolve(import.meta.dirname, '..', '..')
@@ -47,7 +48,33 @@ mkdirSync(filterDir)
 copyFileSync(join(ROOT, 'tests/fixtures/filters/neversink-6-uber-plus-strict.filter'), join(filterDir, 'NeverSink Uber Plus.filter'))
 writeFileSync(join(filterDir, 'poe2_production_Config.ini'), 'item_filter=NeverSink Uber Plus.filter\n')
 // No update check against GitHub during tests.
-const env = { ...process.env, POE2_CLIENT_LOG: logPath, POE2_FILTER_DIR: filterDir, POE2_NO_UPDATES: '1', POE2_LANG: 'en' }
+// A fake local Ollama: the AI path is tested end to end without any real AI service.
+const aiRequests = []
+const ollama = createServer((req, res) => {
+  let body = ''
+  req.on('data', (c) => (body += c))
+  req.on('end', () => {
+    res.setHeader('content-type', 'application/json')
+    if (req.url === '/api/tags') return res.end(JSON.stringify({ models: [{ name: 'qwen3:4b' }] }))
+    if (req.url === '/api/chat') {
+      aiRequests.push(JSON.parse(body))
+      return res.end(JSON.stringify({ message: { content: '<think>…</think>FAKE COACH ANSWER: cap your fire resistance first.' } }))
+    }
+    res.statusCode = 404
+    res.end('{}')
+  })
+})
+await new Promise((r) => ollama.listen(0, '127.0.0.1', r))
+const ollamaUrl = `http://127.0.0.1:${ollama.address().port}`
+
+const env = {
+  ...process.env,
+  POE2_CLIENT_LOG: logPath,
+  POE2_FILTER_DIR: filterDir,
+  POE2_NO_UPDATES: '1',
+  POE2_LANG: 'en',
+  POE2_OLLAMA_URL: ollamaUrl
+}
 if (packaged) delete env.POB_ENGINE_DIR
 const app = await electron.launch({ args, env, ...(packaged ? { executablePath: packaged } : {}) })
 // The main window (the overlay is a second window of the same page, with #overlay).
@@ -357,6 +384,33 @@ try {
   if (!text.includes('1 kill / 1') || !text.includes('Rush maps')) fail(`sessions: ${text}`)
   await win.screenshot({ path: join(SHOTS, 'screenshot-sessions.png') })
 
+  step('AI coach (optional): off by default, local Ollama, see what is sent, answer')
+  await win.getByRole('tab', { name: 'Build' }).click()
+  if (await win.getByRole('button', { name: /Ask the AI coach/ }).isVisible()) fail('AI shown while off')
+  await win.getByRole('button', { name: 'Settings' }).click()
+  const aiSettings = win.getByRole('dialog', { name: 'Settings' })
+  await aiSettings.getByLabel('AI explanations (optional)').selectOption('ollama')
+  await aiSettings.getByText('Installed: qwen3:4b').waitFor({ timeout: 10_000 })
+  await aiSettings.getByRole('button', { name: 'Close' }).click()
+  await win.getByRole('button', { name: 'See what is sent' }).click()
+  await win.getByText('Stats (Path of Building):', { exact: false }).first().waitFor({ timeout: 10_000 })
+  if (aiRequests.length) fail('something was sent before clicking Ask')
+  await win.getByRole('button', { name: /Ask the AI coach/ }).click()
+  await win.getByRole('note', { name: 'AI answer' }).getByText('FAKE COACH ANSWER: cap your fire resistance first.').waitFor({ timeout: 15_000 })
+  if (await win.getByText('<think>').isVisible()) fail('model reasoning shown')
+  await win.getByRole('note', { name: 'AI answer' }).scrollIntoViewIfNeeded()
+  await win.screenshot({ path: join(SHOTS, 'screenshot-ai.png') })
+  const sentToAi = aiRequests[0]
+  if (sentToAi?.model !== 'qwen3:4b') fail(`AI model: ${sentToAi?.model}`)
+  const sentText = JSON.stringify(sentToAi?.messages ?? [])
+  if (!/Answer in English/.test(sentText) || !/Stats \(Path of Building\)/.test(sentText)) fail(`AI prompt: ${sentText.slice(0, 300)}`)
+  if (/Client\.txt|poe2-e2e/.test(sentText)) fail('local paths sent to the AI')
+  // Back off (the default) for the rest of the test.
+  await win.getByRole('button', { name: 'Settings' }).click()
+  await aiSettings.getByLabel('AI explanations (optional)').selectOption('')
+  await aiSettings.getByRole('button', { name: 'Close' }).click()
+  await win.getByRole('button', { name: /Ask the AI coach/ }).waitFor({ state: 'hidden', timeout: 5_000 })
+
   step('in-game overlay: map info, verdict pop-up when hidden, move and lock, turn off')
   const overlayState = () =>
     app.evaluate(({ BrowserWindow }) => {
@@ -440,4 +494,5 @@ try {
   fail(`${err.message} (screenshot: ${join(work, 'failure.png')})`)
 } finally {
   await app.close()
+  ollama.close()
 }
